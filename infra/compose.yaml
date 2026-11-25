@@ -1,0 +1,102 @@
+name: parking-monitoring
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0.22
+    restart: unless-stopped
+    ports:
+      - "${MQTT_BIND_IP:?Set the trusted LAN IPv4}:1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/acl:/mosquitto/config/acl:ro
+      - ../.secrets/mosquitto.passwd:/mosquitto/config/passwd:ro
+      - mqtt_data:/mosquitto/data
+    environment:
+      MQTT_USERNAME: ${MQTT_USERNAME}
+      MQTT_PASSWORD: ${MQTT_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_pub -h 127.0.0.1 -u \"$$MQTT_USERNAME\" -P \"$$MQTT_PASSWORD\" -t parking/health -m ready -q 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+  influxdb:
+    image: influxdb:2.10.1
+    restart: unless-stopped
+    ports: ["127.0.0.1:8086:8086"]
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_USERNAME}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: parking
+      DOCKER_INFLUXDB_INIT_BUCKET: sensor_data
+      DOCKER_INFLUXDB_INIT_RETENTION: 30d
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+    volumes:
+      - influx_data:/var/lib/influxdb2
+      - influx_config:/etc/influxdb2
+    healthcheck:
+      test: ["CMD", "influx", "ping", "--host", "http://localhost:8086"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+  backend:
+    build: ../backend
+    restart: unless-stopped
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_USERNAME: ${MQTT_USERNAME}
+      MQTT_PASSWORD: ${MQTT_PASSWORD}
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_ORG: parking
+      INFLUX_BUCKET: sensor_data
+      INFLUX_TOKEN: ${INFLUX_WRITE_TOKEN:-${INFLUX_TOKEN}}
+    depends_on:
+      mosquitto: {condition: service_healthy}
+      influxdb: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    read_only: true
+    tmpfs: [/tmp]
+  grafana:
+    image: grafana/grafana:12.3.4
+    restart: unless-stopped
+    ports: ["127.0.0.1:3000:3000"]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USERNAME}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      INFLUX_READ_TOKEN: ${INFLUX_READ_TOKEN:-${INFLUX_TOKEN}}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../dashboard:/var/lib/grafana/dashboards:ro
+    depends_on:
+      influxdb: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+  backend-test:
+    extends:
+      service: backend
+    profiles: [testing]
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_USERNAME: ${MQTT_USERNAME}
+      MQTT_PASSWORD: ${MQTT_PASSWORD}
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_ORG: parking
+      INFLUX_BUCKET: sensor_test
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      MQTT_TOPIC_PREFIX: parking/test
+      DATA_ORIGIN: synthetic
+volumes:
+  mqtt_data:
+  influx_data:
+  influx_config:
+  grafana_data:

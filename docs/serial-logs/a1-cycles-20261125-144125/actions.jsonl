@@ -1,0 +1,10 @@
+{"utc":"2026-11-25T07:41:25.9499606Z","cycle":0,"target_cm":30,"action":"initial baseline"}
+{"utc":"2026-11-25T07:41:45.1059721Z","cycle":1,"target_cm":10,"action":"move prompt"}
+{"utc":"2026-11-25T07:42:49.8480643Z","cycle":1,"target_cm":30,"action":"return prompt; occupied observed"}
+{"utc":"2026-11-25T07:43:38.7038644Z","cycle":2,"target_cm":10,"action":"move prompt; cycle 1 observed pass and user confirmed positions"}
+{"utc":"2026-11-25T07:44:07.6872135Z","cycle":2,"target_cm":10,"action":"user confirmed holding"}
+{"utc":"2026-11-25T07:44:22.0575912Z","cycle":2,"target_cm":30,"action":"return prompt; occupied check passed with \u003e5 consecutive valid readings at 11.1-11.2 cm"}
+{"utc":"2026-11-25T07:45:10.6182460Z","cycle":2,"target_cm":30,"action":"user confirmed holding"}
+{"utc":"2026-11-25T07:45:21.6569517Z","cycle":3,"target_cm":10,"action":"move prompt; cycle 2 observed pass"}
+{"utc":"2026-11-25T07:50:30.2548961Z","cycle":3,"target_cm":10,"action":"user confirmed holding"}
+{"utc":"2026-11-25T07:50:41.3395513Z","cycle":3,"target_cm":30,"action":"return prompt; occupied observed pass at 11.7-11.8 cm"}

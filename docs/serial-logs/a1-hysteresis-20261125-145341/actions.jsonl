@@ -1,0 +1,6 @@
+{"utc":"2026-11-25T07:53:41.2507461Z","stage":"vacant_baseline","target_cm":30,"action":"user confirmed ready at 30 cm"}
+{"utc":"2026-11-25T07:54:02.0120416Z","stage":"vacant_to_band","target_cm":16.5,"action":"move prompt after six valid vacant baseline messages"}
+{"utc":"2026-11-25T07:56:28.9169079Z","stage":"vacant_to_band","target_cm":16.5,"action":"user confirmed holding at 16-17 cm"}
+{"utc":"2026-11-25T07:57:04.5390527Z","stage":"occupied_to_band","target_cm":"previous position plus about 2 cm","action":"move prompt; sensor occupied baseline established at 14.8-14.9 cm"}
+{"utc":"2026-11-25T07:57:47.5125093Z","stage":"occupied_to_band","action":"user confirmed moved about 2 cm farther and holding"}
+{"utc":"2026-11-25T07:58:00.0619923Z","stage":"reset_vacant","target_cm":30,"action":"prompt mark current 16.2 cm measured position then move to 30 cm; occupied-band hold passed"}

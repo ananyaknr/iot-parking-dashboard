@@ -1,0 +1,18 @@
+﻿{
+    "port":  "COM8",
+    "baud":  9600,
+    "requested_seconds":  15,
+    "complete_messages":  14,
+    "valid_messages":  14,
+    "errors":  [
+
+               ],
+    "startup_line_discarded":  "{\"node\":\"uno\",\"a1_distance_cm\":17.1,\"m1_distance_cm\":null,\"a1_occupied\":true,\"m1_occupied\":null,\"vibration\":null,\"vibration_count\":null,\"vibration_status\":\"not_installed\"}",
+    "trailing_partial_line":  "{\"node\":\"uno\",\"a1_distance_cm\":17.1,\"m1_distance_cm\":null,\"a1_occupied\":true,\"m1_occupied\":null,\"vibration\":null,\"vibration_count\":null,\"vibration_status\":\"not_",
+    "mean_interval_seconds":  0.9990262,
+    "minimum_messages":  13,
+    "telemetry_pass":  true,
+    "physical_acceptance":  "Not determined by this capture; correlate with user actions",
+    "raw_log":  "docs\\serial-logs\\a1-wallet-30cm\\20261125-142123-raw.jsonl",
+    "event_log":  "docs\\serial-logs\\a1-wallet-30cm\\20261125-142123-events.jsonl"
+}

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Intelligence Parking Lot · Sensor Monitoring</title><link rel="stylesheet" href="/static/style.css"><script defer src="/static/vendor/chart.umd.min.js"></script><script defer src="/static/app.js"></script></head>
+<body><div class="shell">
+<header><div class="eyebrow">INTELLIGENCE PARKING LOT</div><div class="heading"><div><h1>Sensor monitoring</h1><p>Live parking and environmental telemetry · local Windows server</p></div><span id="system" class="badge muted">Connecting</span></div></header>
+<div class="connection-bar" aria-live="polite"><span id="uno-status">UNO · Unknown</span><span id="esp32-status">ESP32 · Unknown</span><span id="storage-status">Storage · Unknown</span><span id="updated">Waiting for readings</span></div>
+<main><section aria-labelledby="parking-heading"><div class="section-heading"><h2 id="parking-heading">Parking occupancy</h2><span>Unknown slots are excluded from allocation</span></div><div class="parking-grid">
+<article class="card slot"><div class="card-label">CAR PARK · A1</div><div id="a1-state" class="state unknown">Unknown</div><div class="slot-detail"><span>Ultrasonic distance</span><strong id="a1-distance">—</strong></div><p id="a1-note">Waiting for valid telemetry</p></article>
+<article class="card slot"><div class="card-label">MOTORCYCLE PARK · M1</div><div class="state unknown">Not installed</div><div class="slot-detail"><span>HC-SR04</span><strong>Reserved</strong></div><p>D4 / D5 reserved · Allocation disabled</p></article>
+<article class="card slot"><div class="card-label">CAMERA · TEAMMATE INTERFACE</div><div id="camera-state" class="state unknown">Unknown</div><div class="slot-detail"><span id="camera-slot">No camera result</span><strong id="camera-confidence">—</strong></div><p>Advisory results · No automatic sensor fusion</p></article>
+</div></section>
+<section aria-labelledby="environment-heading"><div class="section-heading"><h2 id="environment-heading">Environment</h2><span>DHT22 · LDR · MQ-2</span></div><div class="sensor-grid">
+<article class="card metric"><div class="card-label">TEMPERATURE</div><div class="metric-value" id="temperature">—</div><p>Degrees Celsius</p></article>
+<article class="card metric"><div class="card-label">RELATIVE HUMIDITY</div><div class="metric-value" id="humidity">—</div><p>Percent relative humidity</p></article>
+<article class="card metric"><div class="card-label">AMBIENT LIGHT</div><div class="metric-value" id="light">—</div><p>Raw ADC · 0–4095</p></article>
+<article class="card metric"><div class="card-label">GAS · MQ-2</div><div class="metric-value" id="gas">—</div><p>Raw ADC · Uncalibrated, not ppm</p></article>
+</div></section>
+<section aria-labelledby="history-heading"><div class="section-heading"><h2 id="history-heading">Historical readings</h2><label>Time range <select id="range"><option value="5">Last 5 minutes</option><option value="30" selected>Last 30 minutes</option><option value="60">Last hour</option><option value="1440">Last 24 hours</option><option value="10080">Last 7 days</option></select></label></div><p id="history-status" class="helper">Loading history…</p><div class="chart-grid">
+<article class="card chart-card"><h3>A1 distance <span>cm</span></h3><div class="canvas-wrap"><canvas id="distance-chart" aria-label="A1 distance history" role="img"></canvas></div></article>
+<article class="card chart-card"><h3>Temperature & humidity <span>°C / %</span></h3><div class="canvas-wrap"><canvas id="environment-chart" aria-label="Temperature and humidity history" role="img"></canvas></div></article>
+<article class="card chart-card"><h3>Ambient light <span>raw ADC</span></h3><div class="canvas-wrap"><canvas id="light-chart" aria-label="Light history" role="img"></canvas></div></article>
+<article class="card chart-card"><h3>Gas · uncalibrated <span>raw ADC</span></h3><div class="canvas-wrap"><canvas id="gas-chart" aria-label="Uncalibrated gas raw ADC history" role="img"></canvas></div></article>
+</div></section></main>
+<footer><span>Refresh every 2 seconds · Stale after 10 seconds · 7-day retention</span><span>Vibration: Not installed · Camera integration interface ready</span></footer>
+</div></body></html>

@@ -1,0 +1,1004 @@
+{
+  "uid": "parking-monitor",
+  "title": "Intelligence Parking Lot \u2014 Sensor Monitoring",
+  "schemaVersion": 39,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "5s",
+  "editable": false,
+  "tags": [
+    "parking",
+    "hardware"
+  ],
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "A1 occupancy",
+      "type": "stat",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "parking-influx"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "import \"date\"\nfrom(bucket: \"sensor_data\")\n  |> range(start: -2m)\n  |> filter(fn: (r) => r._measurement == \"parking_node\" and r.kind == \"status\")\n  |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> map(fn: (r) => ({_time: r._time, _value: if r._time < date.sub(d: 10s, from: now()) then 0 else r.a1_state}))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "Unknown",
+          "decimals": 1,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Unknown",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "Available",
+                  "color": "green"
+                },
+                "2": {
+                  "text": "Occupied",
+                  "color": "red"
+                },
+                "3": {
+                  "text": "Not installed",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "A1 ultrasonic distance",
+      "type": "stat",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "parking-influx"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "import \"date\"\nfrom(bucket: \"sensor_data\")\n  |> range(start: -2m)\n  |> filter(fn: (r) => r._measurement == \"parking_node\" and r.kind == \"status\")\n  |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> filter(fn: (r) => r._time >= date.sub(d: 10s, from: now()) and r.fresh and r.a1_distance_cm_valid and exists r.a1_distance_cm)\n  |> keep(columns: [\"_time\", \"a1_distance_cm\"])\n  |> rename(columns: {\"a1_distance_cm\": \"_value\"})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthcm",
+          "noValue": "Unknown",
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "M1 occupancy \u2014 Not installed",
+      "type": "stat",
+      "description": "D4/D5 reserved. M1 is never eligible for automatic allocation.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "parking-influx"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "import \"date\"\nimport \"array\"\narray.from(rows: [{_time: now(), _value: 3}])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "Unknown",
+          "decimals": 1,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Unknown",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "Available",
+                  "color": "green"
+                },
+                "2": {
+                  "text": "Occupied",
+                  "color": "red"
+                },
+                "3": {
+                  "text": "Not installed",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Vibration \u2014 Not installed",
+      "type": "stat",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "parking-influx"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "import \"date\"\nimport \"array\"\narray.from(rows: [{_time: now(), _value: 3}])"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "Unknown",
+          "decimals": 1,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Unknown",
+                  "color": "gray"
+                },
+                "1": {
+                  "text": "Available",
+                  "color": "green"
+                },
+                "2": {
+                  "text": "Occupied",
+                  "color": "red"
+                },
+                "3": {
+                  "text": "Not installed",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Temperature",
+      "type": "stat",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "parking-influx"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "import \"date\"\nfrom(bucket: \"sensor_data\")\n  |> range(start: -2m)\n  |> filter(fn: (r) => r._measurement == \"parking_gateway\" and r.kind == \"status\")\n  |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> filter(fn: (r) => r._time >= date.sub(d: 10s, from: now()) and r.fresh and r.temperature_c_valid and exists r.temperature_c)\n  |> keep(columns: [\"_time\", \"temperature_c\"])\n  |> rename(columns: {\"temperature_c\": \"_value\"})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "noValue": "Unknown",
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Relative humidity",
+      "type": "stat",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "parking-influx"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 4,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "import \"date\"\nfrom(bucket: \"sensor_data\")\n  |> range(start: -2m)\n  |> filter(fn: (r) => r._measurement == \"parking_gateway\" and r.kind == \"status\")\n  |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> filter(fn: (r) => r._time >= date.sub(d: 10s, from: now()) and r.fresh and r.humidity_pct_valid and exists r.humidity_pct)\n  |> keep(columns: [\"_time\", \"humidity_pct\"])\n  |> rename(columns: {\"humidity_pct\": \"_value\"})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "Unknown",
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Ambient light \u2014 raw ADC",
+      "type": "stat",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "parking-influx"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 4,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "import \"date\"\nfrom(bucket: \"sensor_data\")\n  |> range(start: -2m)\n  |> filter(fn: (r) => r._measurement == \"parking_gateway\" and r.kind == \"status\")\n  |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> filter(fn: (r) => r._time >= date.sub(d: 10s, from: now()) and r.fresh and r.light_raw_valid and exists r.light_raw)\n  |> keep(columns: [\"_time\", \"light_raw\"])\n  |> rename(columns: {\"light_raw\": \"_value\"})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "Unknown",
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "MQ-2 gas \u2014 uncalibrated raw ADC",
+      "type": "stat",
+      "description": "Unconditioned or uncalibrated ADC reading. Not ppm; not a calibrated concentration.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "parking-influx"
+      },
+      "gridPos": {
+        "x": 18,
+        "y": 4,
+        "w": 6,
+        "h": 4
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "import \"date\"\nfrom(bucket: \"sensor_data\")\n  |> range(start: -2m)\n  |> filter(fn: (r) => r._measurement == \"parking_gateway\" and r.kind == \"status\")\n  |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> filter(fn: (r) => r._time >= date.sub(d: 10s, from: now()) and r.fresh and r.gas_raw_valid and exists r.gas_raw)\n  |> keep(columns: [\"_time\", \"gas_raw\"])\n  |> rename(columns: {\"gas_raw\": \"_value\"})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "Unknown",
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "UNO freshness \u2014 10 s timeout",
+      "type": "stat",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "parking-influx"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "import \"date\"\nfrom(bucket: \"sensor_data\")\n  |> range(start: -2m)\n  |> filter(fn: (r) => r._measurement == \"parking_node\" and r.kind == \"status\")\n  |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> map(fn: (r) => ({_time: r._time, _value: if r._time < date.sub(d: 10s, from: now()) then 0 else r.availability_state}))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "Unknown",
+          "decimals": 1,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Stale / Unknown",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Receiving",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "ESP32 freshness \u2014 10 s timeout",
+      "type": "stat",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "parking-influx"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 3
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "import \"date\"\nfrom(bucket: \"sensor_data\")\n  |> range(start: -2m)\n  |> filter(fn: (r) => r._measurement == \"parking_gateway\" and r.kind == \"status\")\n  |> pivot(rowKey: [\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> group()\n  |> sort(columns: [\"_time\"], desc: true)\n  |> limit(n: 1)\n  |> map(fn: (r) => ({_time: r._time, _value: if r._time < date.sub(d: 10s, from: now()) then 0 else r.availability_state}))"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "Unknown",
+          "decimals": 1,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Stale / Unknown",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Receiving",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "A1 distance history",
+      "type": "timeseries",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "parking-influx"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "import \"date\"\nfrom(bucket: \"sensor_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"parking_node\" and r.kind == \"status\" and (r._field == \"a1_distance_cm\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: true)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthcm",
+          "noValue": "Unknown",
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Temperature history",
+      "type": "timeseries",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "parking-influx"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 11,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "import \"date\"\nfrom(bucket: \"sensor_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"parking_gateway\" and r.kind == \"status\" and (r._field == \"temperature_c\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: true)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "noValue": "Unknown",
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "Humidity history",
+      "type": "timeseries",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "parking-influx"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "import \"date\"\nfrom(bucket: \"sensor_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"parking_gateway\" and r.kind == \"status\" and (r._field == \"humidity_pct\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: true)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "Unknown",
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "Light history \u2014 raw ADC",
+      "type": "timeseries",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "parking-influx"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 18,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "import \"date\"\nfrom(bucket: \"sensor_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"parking_gateway\" and r.kind == \"status\" and (r._field == \"light_raw\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: true)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "Unknown",
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "Gas history \u2014 uncalibrated raw ADC",
+      "type": "timeseries",
+      "description": "",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "parking-influx"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 18,
+        "w": 8,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "import \"date\"\nfrom(bucket: \"sensor_data\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"parking_gateway\" and r.kind == \"status\" and (r._field == \"gas_raw\"))\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: true)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "noValue": "Unknown",
+          "decimals": 1,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "custom": {
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "last"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      }
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "templating": {
+    "list": []
+  }
+}

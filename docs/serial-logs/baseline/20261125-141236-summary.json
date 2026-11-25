@@ -1,0 +1,18 @@
+﻿{
+    "port":  "COM8",
+    "baud":  9600,
+    "requested_seconds":  60,
+    "complete_messages":  59,
+    "valid_messages":  59,
+    "errors":  [
+
+               ],
+    "startup_line_discarded":  "{\"node\":\"uno\",\"a1_distance_cm\":15.5,\"m1_distance_cm\":null,\"a1_occupied\":null,\"m1_occupied\":null,\"vibration\":null,\"vibration_count\":null,\"vibration_status\":\"not_installed\"}",
+    "trailing_partial_line":  "{\"node\":\"uno\",\"a1_distance_cm\":null,\"m1_distance_cm\":null,\"a1_occupied\":null,\"m1_occupied\":null,",
+    "mean_interval_seconds":  1.0013368672413792,
+    "minimum_messages":  55,
+    "telemetry_pass":  true,
+    "physical_acceptance":  "Not determined by this capture; correlate with user actions",
+    "raw_log":  "docs\\serial-logs\\baseline\\20261125-141236-raw.jsonl",
+    "event_log":  "docs\\serial-logs\\baseline\\20261125-141236-events.jsonl"
+}

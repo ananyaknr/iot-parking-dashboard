@@ -1,0 +1,11 @@
+.tools/
+.env
+.secrets/
+**/secrets.h
+**/secrets.local.h
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+docs/runtime-logs/
+.runtime/

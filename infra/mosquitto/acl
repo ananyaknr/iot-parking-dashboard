@@ -1,0 +1,6 @@
+user parking
+topic readwrite parking/node/telemetry
+topic readwrite parking/gateway/telemetry
+topic readwrite parking/camera/result
+topic write parking/health
+topic readwrite parking/test/#

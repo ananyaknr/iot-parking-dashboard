@@ -1,0 +1,19 @@
+﻿{
+    "port":  "COM8",
+    "baud":  9600,
+    "requested_seconds":  3600,
+    "actual_seconds":  366.5207929,
+    "complete_messages":  366,
+    "valid_messages":  366,
+    "errors":  [
+
+               ],
+    "startup_line_discarded":  "{\"node\":\"uno\",\"a1_distance_cm\":29.4,\"m1_distance_cm\":null,\"a1_occupied\":false,\"m1_occupied\":null,\"vibration\":null,\"vibration_count\":null,\"vibration_status\":\"not_installed\"}",
+    "trailing_partial_line":  "",
+    "mean_interval_seconds":  0.99994397013698622,
+    "minimum_messages":  335,
+    "telemetry_pass":  true,
+    "physical_acceptance":  "Not determined by this capture; correlate with user actions",
+    "raw_log":  "docs\\serial-logs\\a1-hysteresis-20261125-145341\\20261125-145341-raw.jsonl",
+    "event_log":  "docs\\serial-logs\\a1-hysteresis-20261125-145341\\20261125-145341-events.jsonl"
+}

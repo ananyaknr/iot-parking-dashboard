@@ -1,0 +1,19 @@
+﻿{
+    "port":  "COM8",
+    "baud":  9600,
+    "requested_seconds":  1200,
+    "actual_seconds":  661.8963685,
+    "complete_messages":  661,
+    "valid_messages":  661,
+    "errors":  [
+
+               ],
+    "startup_line_discarded":  ",\"vibration\":null,\"vibration_count\":null,\"vibration_status\":\"not_installed\"}",
+    "trailing_partial_line":  "",
+    "mean_interval_seconds":  0.99998690060606055,
+    "minimum_messages":  606,
+    "telemetry_pass":  true,
+    "physical_acceptance":  "Not determined by this capture; correlate with user actions",
+    "raw_log":  "docs\\serial-logs\\a1-cycles-20261125-144125\\20261125-144126-raw.jsonl",
+    "event_log":  "docs\\serial-logs\\a1-cycles-20261125-144125\\20261125-144126-events.jsonl"
+}
