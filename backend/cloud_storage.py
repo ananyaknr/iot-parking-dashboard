@@ -4,11 +4,12 @@ import logging
 import math
 import queue
 import random
-import re
 import sqlite3
 import threading
 import time
 from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+from http.client import HTTPException
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import urlencode, urlsplit
@@ -31,15 +32,20 @@ MAX_BATCH_BYTES = 100_000
 INTERVAL = 10
 
 
-def load_config(path=ROOT / ".secrets" / "cloud.json", *, testing=False):
-    config = json.loads(Path(path).read_text(encoding="utf-8"))
-    host = urlsplit(config["url"])
+def serverless_url(url):
+    host = urlsplit(url)
     if (host.scheme != "https" or not host.hostname
             or not (host.hostname == "cloud2.influxdata.com"
                     or host.hostname.endswith(".cloud2.influxdata.com"))
             or host.username or host.password or host.port not in (None, 443)
             or host.path not in ("", "/") or host.query or host.fragment):
         raise ValueError("Expected an official HTTPS Cloud Serverless regional URL")
+    return f"https://{host.hostname}"
+
+
+def load_config(path=ROOT / ".secrets" / "cloud.json", *, testing=False):
+    config = json.loads(Path(path).read_text(encoding="utf-8"))
+    url = serverless_url(config["url"])
     bucket = TEST if testing else PRODUCTION
     if config.get("bucket") != bucket:
         raise ValueError("Unexpected cloud bucket for this environment")
@@ -51,7 +57,7 @@ def load_config(path=ROOT / ".secrets" / "cloud.json", *, testing=False):
             raise ValueError("Missing or invalid cloud token")
     if config["read_token"] == config["write_token"]:
         raise ValueError("Use separate read and write tokens")
-    return dict(config, url=f"https://{host.hostname}")
+    return dict(config, url=url)
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -70,6 +76,14 @@ class CloudClient:
     def __init__(self, config):
         self.config = config
         self.opener = build_opener(NoRedirect())
+        self.metrics_lock = threading.Lock()
+        self.metrics = {"write_requests": 0, "query_requests": 0,
+                        "attempted_write_bytes": 0, "acknowledged_write_bytes": 0,
+                        "response_bytes": 0}
+
+    def usage(self):
+        with self.metrics_lock:
+            return dict(self.metrics)
 
     def request(self, path, params, token, body=None):
         headers = {"Authorization": "Token " + self.config[token],
@@ -78,20 +92,34 @@ class CloudClient:
             headers["Content-Type"] = "text/plain; charset=utf-8"
         req = Request(self.config["url"] + path + "?" + urlencode(params),
                       data=body, headers=headers)
+        is_write = path == "/api/v2/write"
+        with self.metrics_lock:
+            self.metrics["write_requests" if is_write else "query_requests"] += 1
+            if is_write:
+                self.metrics["attempted_write_bytes"] += len(body or b"")
         try:
             with self.opener.open(req, timeout=5) as response:
                 result = response.read(1024 * 1024 + 1)
                 if len(result) > 1024 * 1024:
                     raise CloudError("response_too_large")
+                with self.metrics_lock:
+                    self.metrics["response_bytes"] += len(result)
+                    if is_write:
+                        self.metrics["acknowledged_write_bytes"] += len(body or b"")
                 return result
         except HTTPError as exc:
             try:
-                delay = min(3600, max(0, int(exc.headers.get("Retry-After", "0"))))
+                retry = exc.headers.get("Retry-After", "0")
+                try:
+                    delay = int(retry)
+                except ValueError:
+                    delay = math.ceil(parsedate_to_datetime(retry).timestamp() - time.time())
+                delay = min(3600, max(0, delay))
             except (ValueError, TypeError):
                 delay = 0
             exc.close()
             raise CloudError(exc.code, delay) from None
-        except (OSError, TimeoutError) as exc:
+        except (OSError, TimeoutError, HTTPException):
             raise CloudError("network_error") from None
 
     def write(self, lines):
@@ -201,6 +229,8 @@ class Outbox:
             count = self.db.execute("SELECT count(*) FROM pending").fetchone()[0]
             dropped = 0
             for line, created in rows:
+                if self.db.execute("SELECT 1 FROM pending WHERE line=?", (line,)).fetchone():
+                    continue
                 if count >= self.max_records:
                     dropped += 1
                     continue
@@ -279,6 +309,7 @@ class CloudSync:
             # SQLite transaction rolls back on failure. Count entire batch as lost.
             with self.lock:
                 self.dropped += len(rows)
+                self.failures += 1
                 self.error = "local_outbox_error"
 
     def persist(self):
@@ -296,7 +327,7 @@ class CloudSync:
             self.persist_batch(rows)
 
     def send(self, rows):
-        if not rows:
+        if not rows or self.stop.is_set():
             return
         try:
             self.client.write([r[1] for r in rows])
@@ -360,6 +391,7 @@ class CloudSync:
                     "staging": self.stage.qsize(), "uploaded": self.uploaded,
                     "dropped": self.dropped, "failures": self.failures,
                     "last_success_utc": self.last_success, "error": self.error,
+                    "transfer": self.client.usage() if hasattr(self.client, "usage") else {},
                     "retention_days": 30}
 
     def close(self):

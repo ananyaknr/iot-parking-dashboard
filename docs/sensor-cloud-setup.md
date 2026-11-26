@@ -7,13 +7,15 @@ Sign in at https://cloud2.influxdata.com/ or follow the official [Free Plan sign
 
 Create buckets **parking_sensor_data** and **parking_sensor_test**, both with 30-day retention. Use separate bucket-scoped read-only and write-only API tokens for each. For InfluxQL HTTP reads, create a default DBRP mapping for each bucket with database name equal to bucket name (and a default retention policy, e.g. autogen). Follow the official [DBRP guide](https://docs.influxdata.com/influxdb3/cloud-serverless/query-data/execute-queries/v1-http/) and its linked mapping instructions. The HTTP API is not Flux-compatible.
 
+For local resource setup, run `.\.venv\Scripts\python.exe scripts/configure-cloud-resources.py` in an interactive terminal. It accepts an official regional HTTPS URL and a temporary bucket/DBRP management token without echoing or saving the token. It creates only the two approved buckets, sets 30-day retention, creates default DBRP mappings, and reads them back. It refuses insufficient Free Plan capacity or mappings targeting unrelated buckets. It never deletes a bucket or upgrades a plan. A new account's default bucket may occupy one of the two slots: preserve it, resolve capacity/name reuse in the provider UI, and rerun. Revoke the temporary setup token after provisioning. Backend credentials remain separate bucket-scoped read/write tokens entered with the commands below.
+
 Do not paste tokens into chat, commit them, include them in screenshots, or use command-line arguments containing tokens. Run in project PowerShell after the approved native environment is installed:
 
     .\.venv\Scripts\python.exe scripts/configure-cloud.py --test
     .\.venv\Scripts\python.exe scripts/test-cloud-pipeline.py
     .\.venv\Scripts\python.exe scripts/configure-cloud.py
 
-The first two commands configure and verify ONLY the isolated test bucket. Run the final command only once the test passes. Credential files are in ignored .secrets; restrict Windows file permissions to your user. The production config is loaded on the next backend restart. Confirm your real free-plan account and bucket retention in the provider UI; the local confirmation flag is not a billing API assertion.
+The first two commands configure and verify ONLY the isolated test bucket. Run the final command only once the test passes. Credential files are in ignored .secrets; the script enforces restricted Windows permissions before writing credentials and requires an interactive terminal. Tokens must never be piped or passed on the command line. The production config is loaded on the next backend restart. Confirm your real free-plan account and bucket retention in the provider UI; the local confirmation flag is not a billing API assertion.
 
 Restart the existing native stack through its stop/start scripts (no flash/wiring changes):
 
@@ -31,7 +33,9 @@ The upload thread sends up to 200 points/100 kB every ten seconds. Retries prese
 
 Cloud history uses bounded InfluxQL aggregation (approximately 600 windows, up to 30 days), one concurrent query, no automatic polling. Empty/invalid/low-coverage windows are gaps. Aggregates cannot identify every internal outage; never use archive history for live allocation. Source label distinguishes cloud raw telemetry from local status projections. All network calls use HTTPS certificate verification and server-side credentials.
 
-## 3. Required acceptance evidence (not yet executed in this session)
+`/api/latest` includes process-local cloud transfer counters: attempted/acknowledged write bytes, response bytes, write/query request counts. They reset at backend restart and are not the provider's normalized ingestion meter or organization-wide billing usage. Compare a timed measurement against the provider Usage page; account for other clients and query traffic. `scripts/measure-cloud-outbox.py` measures the actual SQLite cap and sampled allocated database/journal bytes using temporary synthetic local-only rows, then removes its own temporary files. It never sends data to cloud or MQTT.
+
+## 3. Required acceptance evidence
 
 - Run the existing Python suite and new cloud unit tests: from backend, ..\.venv\Scripts\python.exe -m unittest discover -s tests -v
 - Run node --check dashboard/static/app.js and the existing Chrome dashboard runner. Extend browser verification to cloud selector, on-demand refresh, 30-day query, errors and local recovery.
@@ -41,4 +45,4 @@ Cloud history uses bounded InfluxQL aggregation (approximately 600 windows, up t
 - Verify bad test credentials, 429/5xx/timeouts, queue cap and partial record errors using isolated fixtures. Check local responsiveness and gap semantics throughout.
 - Measure .runtime/cloud-outbox.sqlite3 plus journal and total footprint during sustained load; measure cloud bytes/quota usage. Document actual results, not estimates.
 
-Implementation session limitation: GitHub changes can be made but the workstation and cloud account cannot be accessed here. New tests are supplied, not reported as passed. Cloud acceptance is pending; issue #1 must stay open. No paid resources, firmware, production credentials, teammate code or existing data were changed.
+Actual execution status is recorded in [sensor-cloud-verification.md](sensor-cloud-verification.md). Passing local regression tests does not establish provider deployment, physical telemetry or internet-outage acceptance. Keep PR #3 draft until the real applicable acceptance tests pass. No paid upgrade, firmware or teammate change is authorized by this workflow.

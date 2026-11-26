@@ -9,6 +9,7 @@ const http = require('node:http');
 const { chromium } = require('../.tools/browser-check/node_modules/playwright');
 const root = path.resolve(__dirname, '..');
 let failHistory = false, failLive = false;
+let failCloud = false, cloudQueries = [];
 const source = {fresh:true,payload_valid:true,a1_state:1,a1_allocation_eligible:true,
   a1_distance_cm:30,a1_distance_cm_valid:true,camera_state:0};
 const server = http.createServer((req,res) => {
@@ -17,10 +18,14 @@ const server = http.createServer((req,res) => {
     res.writeHead(failLive?503:200, {'Content-Type':'application/json'});
     return res.end(JSON.stringify({received_at_utc:new Date().toISOString(),mqtt_connected:true,
       storage_connected:false,ingestion_connected:true,storage_backlog:10,
+      cloud:{enabled:true,pending:12,staging:0,uploaded:3,dropped:0,failures:failCloud?1:0,
+        error:failCloud?'network_error':null,last_success_utc:'2026-11-26T00:00:00Z'},
       sources:{uno:source,esp32:source,camera:{fresh:false,payload_valid:false,camera_state:0}}}));
   }
-  if (url.pathname === '/api/history') {
-    res.writeHead(failHistory?503:200, {'Content-Type':'application/json'});
+  if (['/api/history','/api/cloud/history'].includes(url.pathname)) {
+    const cloud = url.pathname === '/api/cloud/history';
+    if (cloud) cloudQueries.push(url.searchParams.get('minutes'));
+    res.writeHead((cloud?failCloud:failHistory)?503:200, {'Content-Type':'application/json'});
     const stop = Date.parse('2026-11-26T00:15:00Z');
     const span = Number(url.searchParams.get('minutes'))*60000;
     const offset = url.searchParams.get('field') === 'humidity_pct' ? 17000 : 0;
@@ -64,12 +69,33 @@ const server = http.createServer((req,res) => {
     failLive=false;failHistory=false;
     await page.evaluate(async()=>{await live();await history();});
     assert.equal(await page.evaluate(()=>charts.length),4);
+    await page.selectOption('#history-source','cloud');
+    await page.waitForFunction(()=>!historyBusy);
+    assert.match(await page.locator('#history-status').innerText(),/Cloud archive/);
+    assert.equal(cloudQueries.length,5);
+    await page.selectOption('#range','43200');
+    await page.waitForFunction(()=>!historyBusy);
+    assert.deepEqual(cloudQueries.slice(-5),['43200','43200','43200','43200','43200']);
+    const before=cloudQueries.length;
+    await page.waitForTimeout(10500);
+    assert.equal(cloudQueries.length,before,'cloud history must not poll');
+    await page.click('#history-refresh');await page.waitForFunction(()=>!historyBusy);
+    assert.equal(cloudQueries.length,before+5);
+    failCloud=true;await page.evaluate(async()=>{await live();await history();});
+    assert.match(await page.locator('#cloud-status').innerText(),/Attention/);
+    assert.match(await page.locator('#history-status').innerText(),/Cloud history unavailable/);
+    assert.equal(await page.locator('#a1-state').innerText(),'Available');
+    assert.equal(await page.evaluate(()=>charts.length),0);
+    await page.selectOption('#history-source','local');await page.waitForFunction(()=>!historyBusy);
+    assert.equal(await page.locator('#range').inputValue(),'10080');
+    assert.equal(await page.evaluate(()=>charts.length),4);
+    failCloud=false;await page.evaluate(()=>live());
     await page.reload();await page.waitForFunction(()=>charts.length===4);
     await page.setViewportSize({width:390,height:844});
     await page.waitForTimeout(300);
     await page.screenshot({path:path.join(root,'.tools/browser-check/dashboard.png'),fullPage:true});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     assert.deepEqual(errors,[]);
-    console.log('PASS real Chromium: midnight/multiday/7-day axes, independent series, null gaps, health, HTTP failures, recovery, refresh, mobile width');
+    console.log('PASS real Chromium: local regression plus cloud selector/30-day range/manual refresh/no polling/failure/local recovery/mobile width');
   } finally {await browser.close();server.close();}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});

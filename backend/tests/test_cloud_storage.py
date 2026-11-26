@@ -1,9 +1,14 @@
 import json
 import tempfile
+import sqlite3
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
+from unittest.mock import Mock
+from urllib.error import HTTPError
+from http.client import IncompleteRead
+from email.message import Message
 from cloud_storage import CloudClient, CloudError, CloudSync, Outbox, telemetry_line, start_optional_cloud, load_config
 
 STAMP = datetime(2026, 11, 26, 0, 0, tzinfo=timezone.utc)
@@ -57,6 +62,22 @@ class CloudTests(unittest.TestCase):
         self.assertEqual(self.client.writes, ["one", "one"])
         self.assertEqual(self.outbox.depth(), 0)
 
+    def test_auth_server_and_network_errors_preserve_pending(self):
+        self.outbox.put([('one',1)])
+        for code in (401,403,404,429,500,503,'network_error'):
+            with self.subTest(code=code):
+                self.client.error=CloudError(code)
+                with self.assertRaises(CloudError):self.sync.send(self.outbox.batch())
+                self.assertEqual(self.outbox.depth(),1)
+
+    def test_local_disk_error_is_counted(self):
+        with patch.object(self.outbox,'put',side_effect=sqlite3.OperationalError('disk full')):
+            self.sync.persist_batch([('one',1),('two',2)])
+        state=self.sync.snapshot()
+        self.assertEqual(state['dropped'],2)
+        self.assertEqual(state['failures'],1)
+        self.assertEqual(state['error'],'local_outbox_error')
+
     def test_permanent_record_isolated(self):
         self.outbox.put([("one", 1), ("two", 2)])
         def write(lines):
@@ -71,6 +92,37 @@ class CloudTests(unittest.TestCase):
         self.outbox.put([("same", 1), ("same", 1)])
         self.assertEqual(self.outbox.depth(), 1)
         self.assertEqual(self.outbox.expire(2), 1)
+
+    def test_duplicate_at_capacity_is_not_a_drop(self):
+        self.outbox.put([("one", 1), ("two", 2)])
+        self.assertEqual(self.outbox.put([("one", 1)]), 0)
+        self.assertEqual(self.outbox.depth(), 2)
+
+    def test_shutdown_preserves_unsent_rows(self):
+        self.outbox.put([("one", 1)])
+        self.sync.stop.set()
+        self.sync.send(self.outbox.batch())
+        self.assertEqual(self.outbox.depth(), 1)
+        self.assertEqual(self.client.writes, [])
+
+    def test_http_failures_preserve_retry_and_redact_errors(self):
+        client = CloudClient({"url":"https://example.cloud2.influxdata.com", "bucket":"parking_sensor_test",
+                              "write_token":"test-only", "read_token":"test-read-only"})
+        headers = Message();headers['Retry-After'] = 'Thu, 26 Nov 2026 00:01:00 GMT'
+        error = HTTPError('https://example.cloud2.influxdata.com',429,'private response',headers,None)
+        client.opener = Mock()
+        with patch.object(client.opener,'open',side_effect=error), patch('cloud_storage.time.time',return_value=1795651200):
+            with self.assertRaises(CloudError) as raised:
+                client.write(['synthetic'])
+            self.assertEqual(raised.exception.code,429)
+            self.assertEqual(raised.exception.retry_after,60)
+            self.assertNotIn('private',str(raised.exception))
+        with patch.object(client.opener,'open',side_effect=IncompleteRead(b'partial',5)):
+            with self.assertRaises(CloudError) as raised:
+                client.write(['synthetic'])
+            self.assertEqual(raised.exception.code,'network_error')
+        self.assertEqual(client.usage()['attempted_write_bytes'],20)
+        self.assertEqual(client.usage()['acknowledged_write_bytes'],0)
 
     def test_synthetic_never_uses_production_config(self):
         with patch("cloud_storage.load_config", side_effect=AssertionError):
