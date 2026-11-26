@@ -55,4 +55,17 @@ class WebTests(unittest.TestCase):
             self.assertEqual(response.status_code, 503)
             self.assertEqual(response.json['points'], [])
 
+    def test_cloud_endpoint_is_optional_and_sensor_only(self):
+        self.assertEqual(self.client.get('/api/cloud/history').status_code,401)
+        self.assertEqual(self.client.get('/api/cloud/history',headers=self.headers).status_code,503)
+        for query in ('source=camera&field=confidence','source=uno&field=license_plate','minutes=43201'):
+            self.assertEqual(self.client.get('/api/cloud/history?'+query,headers=self.headers).status_code,400)
+
+    def test_cloud_failure_does_not_block_local_endpoints(self):
+        cloud=SimpleNamespace(client=SimpleNamespace(history=lambda *args: (_ for _ in ()).throw(OSError('offline'))))
+        client=create_app(lambda:{'mqtt_connected':True,'storage_connected':True},Queries(),'sensor_test','parking',cloud).test_client()
+        self.assertEqual(client.get('/api/cloud/history',headers=self.headers).status_code,503)
+        self.assertEqual(client.get('/api/latest',headers=self.headers).status_code,200)
+        self.assertEqual(client.get('/api/history',headers=self.headers).status_code,200)
+
 if __name__=="__main__":unittest.main()

@@ -1,5 +1,6 @@
 """Local-only authenticated dashboard; tokens never leave this process."""
 import hmac
+import threading
 import os
 import math
 import json
@@ -28,7 +29,9 @@ def history_points(records, start, stop, every):
              "value": values.get(end)}
             for end in range(first, math.ceil(stop.timestamp() / every) * every + 1, every)]
 
-def create_app(latest, query_api, bucket, org):
+def create_app(latest, query_api, bucket, org, cloud=None):
+    # Reserve the other Waitress threads for local live/history requests.
+    cloud_query_slot = threading.BoundedSemaphore(1)
     app = Flask(__name__, template_folder=str(ROOT / "dashboard" / "templates"),
                 static_folder=str(ROOT / "dashboard" / "static"))
     app.config["MAX_CONTENT_LENGTH"] = 4096
@@ -65,6 +68,27 @@ def create_app(latest, query_api, bucket, org):
     @app.get("/api/latest")
     def current():
         return jsonify(latest())
+
+    @app.get("/api/cloud/history")
+    def cloud_history():
+        source, field = request.args.get("source", "uno"), request.args.get("field", "a1_distance_cm")
+        try:
+            minutes = int(request.args.get("minutes", "30"))
+            if source not in ("uno", "esp32") or field not in HISTORY[source][1] or not 1 <= minutes <= 43200:
+                raise ValueError()
+        except ValueError:
+            return jsonify(error="unsupported cloud source, field or range (1–43200 minutes)"), 400
+        if cloud is None:
+            return jsonify(error="Cloud is not configured", points=[]), 503
+        if not cloud_query_slot.acquire(blocking=False):
+            return jsonify(error="Cloud history busy; retry on demand", points=[]), 429
+        try:
+            return jsonify(cloud.client.history(source, field, minutes))
+        except Exception:
+            app.logger.warning("Cloud history unavailable")
+            return jsonify(error="Cloud history unavailable", points=[]), 503
+        finally:
+            cloud_query_slot.release()
 
     @app.get("/api/history")
     def history():

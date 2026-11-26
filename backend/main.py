@@ -13,6 +13,7 @@ from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
 from model import TOPICS, Source
 from runtime import Ingestion, StorageWorker
+from cloud_storage import start_optional_cloud
 from webapp import create_app
 from waitress import create_server
 
@@ -33,6 +34,7 @@ def main():
     prefix = os.environ.get("MQTT_TOPIC_PREFIX", "parking").rstrip("/")
     wire_topics = {topic.replace("parking/", prefix + "/", 1): topic for topic in TOPICS}
     org = os.environ.get("INFLUX_ORG", "parking")
+    cloud, cloud_error = start_optional_cloud(os.environ.get("DATA_ORIGIN", "hardware"), prefix, bucket)
     influx = InfluxDBClient(url=os.environ.get("INFLUX_URL", "http://influxdb:8086"),
                             token=os.environ["INFLUX_TOKEN"], org=org, timeout=4000)
     writer = influx.write_api(write_options=SYNCHRONOUS)
@@ -89,6 +91,7 @@ def main():
                 "data_origin": os.environ.get("DATA_ORIGIN", "hardware"),
                 "mqtt_connected": connected.is_set(),
                 **storage.snapshot(),
+                "cloud": cloud.snapshot() if cloud else {"enabled": False, "error": cloud_error},
                 "ingestion_connected": connected.is_set() and any(
                     s["fresh"] and s["payload_valid"] for s in sources.values()),
                 "ingestion_queue_depth": messages.qsize(),
@@ -96,7 +99,7 @@ def main():
                 "discarded_messages": ingestion.discarded,
                 "sources": sources}
 
-    app = create_app(latest, influx.query_api(), bucket, org)
+    app = create_app(latest, influx.query_api(), bucket, org, cloud=cloud)
     server = create_server(app, host="127.0.0.1", port=int(os.environ.get("DASHBOARD_PORT", "5000")), threads=4)
     threading.Thread(target=server.run, daemon=True).start()
     log.info("Dashboard listening on http://127.0.0.1:%s", os.environ.get("DASHBOARD_PORT", "5000"))
@@ -132,6 +135,8 @@ def main():
                     if source:
                         received_utc[source] = stamp.isoformat()
                         storage.submit(point(source, states[source].snapshot(received_mono), "telemetry", stamp))
+                        if cloud is not None:
+                            cloud.submit(source, states[source].message, stamp)
                     elif ingestion.rejected > rejected_before:
                         log.warning("Rejected %s telemetry (invalid or retained)", TOPICS[topic])
                         storage.submit(Point("parking_events").tag("source", TOPICS[topic])
@@ -151,6 +156,8 @@ def main():
         client.loop_stop()
         server.close()
         storage_thread.join()
+        if cloud is not None:
+            cloud.close()
         writer.close()
         influx.close()
 
