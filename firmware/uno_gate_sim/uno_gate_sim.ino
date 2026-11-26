@@ -105,17 +105,17 @@ void updateGate(unsigned long now) {
       if(clearFor(now)) {clearTiming=false;changeGate(CLOSED);}
       break;
     case CLOSED:
-      if(u1.state==DETECTED && u2.state==CLEAR && u2.cm>=CLEAR_CM) {
+      if(u1.state==DETECTED && u1.cm<=DETECT_CM && u2.state==CLEAR && u2.cm>=CLEAR_CM) {
         ++arrivalCount;cycleStart=now;clearTiming=false;changeGate(OPEN_WAIT);
       }
       break;
     case OPEN_WAIT:
-      if(now-cycleStart>=CYCLE_TIMEOUT || u1.state==UNKNOWN || u2.state==UNKNOWN)
+      if(now-cycleStart>=CYCLE_TIMEOUT || u1.cm<0 || u2.cm<0)
         changeGate(HOLD);
       else if(u2.state==DETECTED) {clearTiming=false;changeGate(PASSING);}
       break;
     case PASSING:
-      if(now-cycleStart>=CYCLE_TIMEOUT || u1.state==UNKNOWN || u2.state==UNKNOWN)
+      if(now-cycleStart>=CYCLE_TIMEOUT || u1.cm<0 || u2.cm<0)
         changeGate(HOLD);
       else if(clearFor(now)) {closingSince=now;changeGate(CLOSING);}
       break;
