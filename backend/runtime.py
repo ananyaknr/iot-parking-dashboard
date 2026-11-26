@@ -24,7 +24,9 @@ class Ingestion:
             if retained:
                 raise ValueError("retained telemetry rejected")
             _, message = validate(topic, payload)
-            state.accept(message, received)
+            if state.accept(message, received) is False:
+                self.discarded += 1
+                return None
             return source
         except (ValueError, TypeError, UnicodeError):
             state.reject(received)

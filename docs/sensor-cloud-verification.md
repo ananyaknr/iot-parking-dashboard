@@ -146,3 +146,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-cloud-transport
 ```
 
 The resource helper saves only a sanitized receipt at `.runtime/cloud-resources.json`. The real test script saves a sanitized result at `.runtime/cloud-test-verification.json`, including logical point count, synthetic timestamp and byte counters. Runtime credentials remain ignored and server-side. Browser/Computer Use tools failed initialization with `failed to write kernel assets: The system cannot find the path specified`; account sign-in, token creation and local entry are therefore guided user actions. No screenshot or public evidence may contain tokens, plates or photos.
+# Gate schema v2 addendum — 2026-11-26
+
+The accepted PR #3 deployment below remains historical production evidence.
+Separate gate-v2 synthetic verification passed against `parking_sensor_test`
+at 10:10:23 UTC: duplicate identical writes count once; distance and cumulative
+counter history are readable. Transfer: 1,348 acknowledged write bytes across
+two requests, three queries, 459 response bytes. No synthetic production writes.
+The cloud encoder now avoids a duplicate schema_version field/tag name; numeric
+counters use last value rather than mean. Physical gate cloud data remains
+pending successful ESP32 upload and real telemetry verification. See
+[gate evidence](gate-v2-verification.md). No paid resources were created.

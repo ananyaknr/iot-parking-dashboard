@@ -1,5 +1,19 @@
 # Intelligence Parking Lot — Sensor Monitoring
 
+Current gate assignment: [gate v2 verification](docs/gate-v2-verification.md) and
+[shared interface proposal](docs/integration-v2-proposal.md). The gate is a
+**servo-disabled simulation**, with U1 approach and U2 passage roles. Old A1/M1
+records remain legacy history. PR #3 cloud deployment was accepted and merged;
+new gate hardware acceptance is separate and remains incomplete.
+
+With native services running, `.venv\Scripts\python.exe scripts/run-gate-demo.py`
+starts an isolated hardware dashboard at **http://127.0.0.1:5001**, stores only in
+local `sensor_test`, and optionally archives to cloud `parking_sensor_test` using
+the existing scoped test configuration. It never enables production gate routing.
+The normal production backend and `sensor_data` remain independent. Stop the demo
+with Ctrl+C or create `.runtime/gate-demo.stop`; deliberately remove that file
+before restarting. See [bench procedure](docs/gate-sim-test.md).
+
 Native Windows deployment: **UNO → UART → ESP32 → Wi-Fi → authenticated Mosquitto → Python/Flask → InfluxDB OSS 2.x → local dashboard**.
 
 No Docker, WSL, Node.js, React or Grafana is required. Earlier Compose/Grafana files are preserved as inactive reference material. Do not run them for this deployment.
