@@ -11,6 +11,9 @@ int main() {
   {Machine m=opened();set(m.u1,40);m.update(1100);set(m.u2,10);m.update(1200);set(m.u1,10);m.update(1300);assert(m.state==HOLD && !strcmp(m.event,"second_vehicle"));}
   {Machine m=opened();set(m.u1,40);set(m.u2,10);m.update(1200);set(m.u2,40);m.update(1300);m.update(2100);assert(m.state==CLOSING);m.u2.sample(10);m.update(2150);assert(m.state==HOLD && m.completed==0);}
   {Machine m=opened();m.cycleStart=UINT32_MAX-100;m.update(20000);assert(m.state==HOLD);}
+  {Machine m=opened();m.cycleTimeoutMs=120000;m.update(21000);assert(m.state==OPEN_WAIT);m.update(120999);assert(m.state==OPEN_WAIT);m.update(121000);assert(m.state==HOLD && !strcmp(m.event,"cycle_timeout"));}
+  {Machine m=opened();m.cycleTimeoutMs=120000;m.u2.sample(-1);m.update(1100);assert(m.state==HOLD && !strcmp(m.event,"sensor_unknown"));}
+  {Machine m=ready();m.integrated=true;m.cycleTimeoutMs=120000;set(m.u1,10);m.update(1000);assert(!m.authorize(1,true,21000));}
   {Machine m=ready();m.integrated=true;set(m.u1,10);m.update(1000);assert(m.state==AUTH_WAIT);assert(!m.authorize(2,true,1001));assert(m.authorize(1,false,1001));assert(m.state==HOLD);}
   {Machine m=ready();m.integrated=true;set(m.u1,10);m.update(1000);assert(m.authorize(1,true,1001));assert(m.state==OPEN_WAIT);assert(!m.authorize(1,true,1002));}
   {Frame<8> f;for(const char* p="123456789\n";*p;++p) assert(!f.feed(*p));assert(!f.feed('O'));assert(!f.feed('K'));assert(f.feed('\n'));assert(!strcmp(f.data,"OK"));}

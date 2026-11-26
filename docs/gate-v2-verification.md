@@ -1,5 +1,75 @@
 # Gate v2 verification — 2026-11-26
 
+## Completed hardware demonstration, 21:40–22:08 Bangkok
+
+This section supersedes the earlier connectivity blockers below. The owner
+manually separated UNO/ESP32 sensor power onto two breadboards, corrected the
+UNO D11 → GPIO25 divider to 1 kΩ upper / 2 kΩ lower (three 1 kΩ resistors), and
+restored both UART signals. No wiring was changed by the agent. Servo remained
+physically disconnected; D9 remains unused and recognition remains disabled.
+
+| Essential check | Actual evidence |
+|---|---|
+| Port detection | UNO CH340 COM7, VID 1A86/PID 7523; ESP32 CH9102 COM10, VID 1A86/PID 55D4. USB/ROM identification confirmed ESP32-D0WD-V3. Old COM8/COM9 assignments are historical. |
+| ESP32 restoration | Existing latest integrated `esp32_gate_sim` image, 996,160 bytes, uploaded at 115200 with **both boards and UART connected**; flash hash verified. No full erase or rewiring. |
+| Existing UNO firmware | Integrated G2 startup and I2C address 0x27 observed before changing firmware; existing source/USB behavior confirmed. |
+| Guided UNO adjustment | Standalone simulation window extended from 20 to 120 seconds for step-by-step operator guidance. Integrated authorization and core default remain 20 seconds. Missing echo, obstruction and clearance rules remain active. Focused C++ core checks, including the new timeout boundary/unknown/authorization assertions, passed; UNO compile 14,886 bytes flash / 1,386 bytes static RAM, 662 bytes remain. Upload on COM7 exited successfully. |
+| Bidirectional UART | ESP32 `LCD_SENT_TEST` → UNO `ACK` → matching ESP32 `LCD_ACK` with `ok|test`: CAR command `d36ca212`; SUPERCAR `939bf3b5`, repeated as `10e6abbd` for visual confirmation. USB 115200, inter-board UART 19200. |
+| U1/U2 physical cycle | PASS: the owner moved separate reflectors step by step; actual UNO/ESP32/MQTT state sequence and distances are recorded below. Arrivals 1, completed passages 1. |
+| Vibration | Rest diagnostic `VIB_DIAG|1|1|1|0`; after owner tapping `VIB_DIAG|1|0|1|2`. Real sampled transition count rose 0 → 2 and reached local/cloud storage. Response is verified; polarity calibration, per-tap accuracy and missed short pulses remain unaccepted. |
+| Physical LCD | Owner visually confirmed `AB1234 / CAR` and, after resend, `XY5678 / SUPERCAR`. I2C device 0x27 and correlated reverse-UART acknowledgements independently observed. |
+| ESP32 environment | Fresh DHT22 temperature/humidity and LDR/MQ-2 raw ADC values received. At cloud readback: 23.3 °C, 63.5%, light 1029, gas 553. Gas remains uncalibrated ADC, not ppm. |
+| Actual MQTT | Read-only capture 21:48:06–22:08:10 Bangkok contains 1,690 messages, including non-retained actual gate/environment frames and display acknowledgements. No fixture telemetry was published. |
+| Local InfluxDB | Isolated `sensor_test` history returned numeric U1/U2, environmental, arrival/completed and vibration values, with completed 1 and vibration 2. Local storage backlog/drops/write failures were zero in the final receipt. |
+| Isolated cloud | At 22:07:17 Bangkok, direct readback from `parking_sensor_test` returned the completed hardware cycle under the exact boot ID, `event_seq=8`, `passage_completed`, arrivals/completed 1/1, vibration 2, valid U1/U2 and `servo_enabled=false`. Fresh environmental records also returned. |
+| Actual Chrome dashboard | At 22:08:07 Bangkok: fresh UNO gate/ESP32 cards, Closed · simulation, counts 1/1, vibration 2, servo disabled, numeric data in all nine series across six charts from **both local and cloud** storage; no JavaScript errors. Screenshots inspected. |
+
+Completed cycle boot ID: `b3d3741f9f3849a396cd1012ef925eac`.
+Passage ID: `v2:b3d3741f9f3849a396cd1012ef925eac:p:1`.
+These timestamps are actual MQTT receive times in Bangkok:
+
+| Time | Event / state | U1 cm | U2 cm | Arrivals / completed |
+|---|---|---:|---:|---:|
+| 22:05:34.799 | ready / closed | 37.1 | 35.9 | 0 / 0 |
+| 22:05:50.987 | arrival / open_wait | 14.9 | 35.1 | 1 / 0 |
+| 22:06:08.623 | passage_detected / passing | 34.6 | 13.1 | 1 / 0 |
+| 22:06:15.424 | clearance_confirmed / closing | 34.6 | 32.7 | 1 / 0 |
+| 22:06:15.798 | passage_completed / closed | 33.8 | 32.2 | 1 / 1 |
+
+Failures remain evidence: the default Arduino monitor asserted DTR/RTS and
+selected download mode on this CH9102 adapter. Reopening with both off and one
+owner EN press produced normal boot; Arduino IDE had also reclaimed COM10 and
+was closed by the owner. The capture helper now explicitly disables DTR/RTS.
+Initial native startup needed a retry after a setup HTTP 503. Initial cloud
+HTTPS errors recovered; direct exact-cycle readback and browser history passed
+afterward. The final cloud display reported 10 historical retry failures, last
+upload acknowledged, 1,863 uploaded records and 4 pending at screenshot time;
+this does not certify uninterrupted Internet access or a permanently empty queue.
+
+During target positioning, no echo caused `sensor_unknown` and U2-before-U1
+caused `unexpected_passage`; both held for supervised reset. The first arrival
+attempt timed out under the original 20-second window before U2 reached the
+15 cm detection threshold. It was **not a completed cycle**. The accepted
+step-by-step cycle above took about 25 seconds using the explicit 120-second
+standalone window. No physical actuation or original-20-second cycle acceptance
+is claimed. Two initial capture helpers also exited on local log contention/
+command routing; one combined capture then supplied usable matching serial logs.
+
+Raw receipts stay ignored under `.runtime`: `restored-hardware-mqtt.jsonl`,
+`restored-hardware-serial.jsonl`, `final-hardware-readback.json`,
+`final-hardware-dashboard.json` and `final-hardware-{local,cloud}-dashboard.png`.
+No credentials, real license plates or synthetic production data were committed.
+The prior 51-test Python, fixture browser, outage and stress suites were not
+repeated. Only the changed C++ core, necessary UNO build/upload, actual hardware
+readbacks and actual hardware dashboard were checked.
+
+**Remaining limits:** essential servo-disabled hardware demonstration passed.
+Keep PR draft/unmerged pending review; servo power/actuation and camera/teammate
+integration remain deferred. Sensor placement/crosstalk robustness, precise
+threshold calibration, vibration semantics and long-duration operation remain
+follow-up acceptance work. Lightweight native Windows deployment, production
+gate routing off, and isolated gate storage are preserved.
+
 ## Hardware recovery update, 18:25 Bangkok
 
 ### Follow-up at 18:39 Bangkok

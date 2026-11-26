@@ -140,6 +140,9 @@ void setup() {
   pinMode(U1_TRIG,OUTPUT);pinMode(U1_ECHO,INPUT);pinMode(U2_TRIG,OUTPUT);pinMode(U2_ECHO,INPUT);
   digitalWrite(U1_TRIG,LOW);digitalWrite(U2_TRIG,LOW);pinMode(VIB,INPUT_PULLUP);
   vibrationRaw=digitalRead(VIB);vibrationMinimum=vibrationMaximum=vibrationRaw;machine.integrated=INTEGRATED_MODE;
+  // Supervised, servo-disabled standalone bench steps need time for an operator.
+  // Unknown echoes/obstructions still hold immediately; real authorization stays 20 s.
+  machine.cycleTimeoutMs=INTEGRATED_MODE?20000UL:120000UL;
   Wire.begin();Wire.setWireTimeout(25000,true);
   for(uint8_t address=8;address<120;++address) {
     Wire.beginTransmission(address);
@@ -149,6 +152,7 @@ void setup() {
   if(lcd) {lcd->init();lcd->backlight();}else Serial.println(F("LCD_NOT_FOUND"));
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {TCCR2A=_BV(WGM21);TCCR2B=_BV(CS22);OCR2A=249;TIMSK2|=_BV(OCIE2A);}
   showState();Serial.println(F("GATE_SIMULATION; SERVO DISABLED; VIBRATION POLARITY UNVERIFIED"));
+  Serial.print(F("CYCLE_TIMEOUT_MS|"));Serial.println(machine.cycleTimeoutMs);
 }
 void loop() {
   readCommands(gateway,uartFrame,false);readCommands(Serial,usbFrame,true);

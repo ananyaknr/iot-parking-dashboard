@@ -38,6 +38,7 @@ struct Machine {
   State state=BOOT;
   bool integrated=false,ready=false,clearTiming=false,u1Cleared=false;
   uint32_t clearSince=0,cycleStart=0,closingSince=0,arrivals=0,completed=0,eventSeq=0;
+  uint32_t cycleTimeoutMs=20000; // Default and integrated authorization remain 20 s.
   const char* event="boot";
   bool bothClear() const {return u1.clear() && u2.clear();}
   void change(State next,const char* reason) {
@@ -71,7 +72,7 @@ struct Machine {
         }
         break;
       case AUTH_WAIT:case OPEN_WAIT:case PASSING:
-        if(uint32_t(now-cycleStart)>=20000) {change(HOLD,"cycle_timeout");break;}
+        if(uint32_t(now-cycleStart)>=cycleTimeoutMs) {change(HOLD,"cycle_timeout");break;}
         // A debounce transition is not a missing echo. Only invalid ranging holds here.
         if(u1.cm<0 || u2.cm<0) {change(HOLD,"sensor_unknown");break;}
         if(u1.clear()) u1Cleared=true;

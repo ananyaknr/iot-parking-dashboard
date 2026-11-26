@@ -8,6 +8,14 @@ deployment from PR #3 is merged. Gate integration is a **servo-disabled
 simulation**; physical end-to-end acceptance and production migration are
 separate approval steps. See the [verification ledger](docs/gate-v2-verification.md).
 
+The 2026-11-26 servo-disabled hardware demonstration passed: bidirectional UART,
+U1 arrival/U2 passage cycle (counts 1/1), vibration response, CAR/SUPERCAR LCD,
+environment readings and actual local/cloud dashboard history. Standalone
+operator guidance uses a 120-second cycle window; integrated authorization
+remains 20 seconds. See [corrected wiring](docs/wiring.md) for the separate
+breadboards and 1 kΩ upper / 2 kΩ lower UART divider. Servo/camera integration,
+calibration and long-duration acceptance remain pending; PR #4 is unmerged.
+
 Implemented in this branch:
 
 - UNO U1 arrival and U2 passage sensing, simulated opening/closing with clearance

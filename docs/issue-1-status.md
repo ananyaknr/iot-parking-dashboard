@@ -2,6 +2,19 @@
 
 ## Current gate v2 update — 2026-11-26
 
+At 22:08 Bangkok the essential **servo-disabled hardware demonstration passed**:
+restored integrated ESP32 on COM10, verified UNO on COM7, actual bidirectional
+UART/LCD CAR and SUPERCAR, U1 arrival → U2 passage → clearance → closed with
+counts 1/1, vibration transitions 0 → 2, and fresh environmental data through
+MQTT, local `sensor_test`, dashboard and cloud `parking_sensor_test`. See the
+timestamped evidence at the top of [the ledger](gate-v2-verification.md).
+The guided standalone cycle uses a 120-second window; its original 20-second
+attempt timed out. Integrated authorization stays at 20 seconds. The owner
+corrected the 1 kΩ / 2 kΩ divider and separated sensor power onto two breadboards;
+agent verification did not change wiring. Prior physical-blocker statements
+below are historical. Servo actuation, camera/team contracts, calibration and
+long-duration acceptance remain pending; PR #4 stays draft and unmerged.
+
 The latest owner assignment replaces live bay allocation with U1 arrival/U2
 passage and a servo-disabled UNO-local simulation. See
 [actual gate evidence](gate-v2-verification.md), [bench procedure](gate-sim-test.md)

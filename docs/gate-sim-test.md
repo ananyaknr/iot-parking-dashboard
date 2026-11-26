@@ -1,21 +1,35 @@
 # Gate simulation bench test (servo disabled)
 
-User reports successful standalone U1 D2/D3, U2 D4/D5, KY-002 D6 and I2C LCD A4/A5 tests, including mock CAR/SUPERCAR display. GPIO26 → UNO D10 has been connected; existing UNO D11 → divider → GPIO25 and common ground remain. Reverse UART not yet verified. SG90 remains disconnected.
+U1 D2/D3, U2 D4/D5, KY-002 D6 and I2C LCD A4/A5 are connected. The 2026-11-26 guided integrated demonstration verified both UART directions, CAR/SUPERCAR display, vibration response and one completed U1/U2 cycle through local/cloud history. GPIO26 → UNO D10, UNO D11 → corrected divider → GPIO25 and common ground remain connected. SG90 remains disconnected. See the timestamped [verification ledger](gate-v2-verification.md) for limits and the earlier failed attempts.
 
 ## Upload
 
-Recovery procedure verified on 2026-11-26: close native serial monitors, unplug
+After the owner separated sensor power onto two breadboards and corrected the
+UART divider (1 kΩ upper / 2 kΩ lower, three 1 kΩ resistors), integrated ESP32
+upload on COM10 passed hash verification with both boards and UART connected.
+UNO is now COM7. Detect ports each time; do not apply old COM8/COM9 assumptions.
+Keep wiring intact and servo disconnected. See [wiring.md](wiring.md).
+
+The following earlier recovery procedure is historical, **not required for the
+corrected setup**: close native serial monitors, unplug
 UNO USB and disconnect BOTH UART signal paths at ESP32 GPIO25/26. Leave ESP32
 USB/sensors connected; upload at 115200. Wait for hash verification before
 restoring the two signal paths and UNO USB. Partial isolation was unreliable.
-No full erase or toolchain reinstall is necessary. Current acceptance is in
-[gate-v2-verification.md](gate-v2-verification.md); UNO USB instability remains
-the final-session blocker.
+No full erase or toolchain reinstall was necessary. Current acceptance is in
+[gate-v2-verification.md](gate-v2-verification.md).
 
-Keep original firmware intact. Copy local ignored secrets.h from firmware/esp32_gateway/ into firmware/esp32_gate_sim/ (never commit). Open firmware/esp32_gate_sim/esp32_gate_sim.ino, select existing ESP32 board and verify COM9 before uploading. Then open firmware/uno_gate_sim/uno_gate_sim.ino, verify UNO COM8, compile/upload with the same LiquidCrystal_I2C library as the successful diagnostic. Close serial monitors before uploads. Do not attach servo. Both USB ports power existing boards.
+Keep original firmware intact. Use local ignored secrets.h in firmware/esp32_gate_sim/ (never commit). Select the existing ESP32 board and its detected port before uploading firmware/esp32_gate_sim/esp32_gate_sim.ino. Verify the existing UNO firmware before deciding whether it needs an upload. Close serial monitors before uploads. Do not attach servo. Both USB ports power their respective boards. For the current CH9102 ESP32 adapter, open the monitor with `--config baudrate=115200,dtr=off,rts=off`; the default asserted control lines selected download mode in this run. If it prints `waiting for download`, release those lines and briefly press EN with BOOT released.
 
 ## Test
 USB serial is 115200 on BOTH boards; inter-board UART is 19200; newline. Put a fixed reflector beyond 18 cm (within valid range) at each sensor to establish clear zones. Thresholds 15/18 cm are provisional. Allow boot dwell, approach U1 within 15 cm while U2 remains clear, then hold a target in U2, clear both zones beyond 18 cm, wait for simulated closing. U2 detection alone never closes. No echo is unknown; timeout/missing echo during open holds for review. With both zones clear, send RESET via UNO USB serial to recover HOLD. Counters reset on reboot; random boot-scoped v2 IDs distinguish events across reboots.
+
+Standalone simulation now allows **120 seconds** from arrival for a supervised,
+step-by-step bench demonstration. The original 20-second attempt timed out while
+the operator positioned U2. The shared core default and integrated authorization
+deadline remain 20 seconds; the UNO selects 120 seconds only in standalone mode.
+This does not relax missing-echo, obstruction, second-vehicle or clearance checks.
+Keep separate reflectors in both beams: a target or hand crossing U2 before U1
+causes `unexpected_passage`; removing the only reflector can cause `sensor_unknown`.
 
 On ESP32 USB send LCD|AB1234|car then LCD|XY5678|supercar. Expect LCD_SENT_TEST|id then LCD_ACK|id|ok|test (or duplicate). Confirm the physical LCD separately. Commands retry with the same ID and a bounded timeout; an ACK timeout is a failed test. Display override lasts 15 s. Only synthetic ASCII test plates; no actual recognition integration yet. UNO USB VIB? reports raw/min/max/sampled transitions; tapping is needed to establish polarity and debounce behavior.
 
