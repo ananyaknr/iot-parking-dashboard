@@ -111,3 +111,7 @@ Pop-Location
 The smoke test publishes **explicitly synthetic** messages only to `parking/test/*`, starts a separate test backend on localhost:5001, and stores them only in the seven-day `sensor_test` bucket. It tests all three topics, malformed/null inputs, ten-second staleness, recovery, M1 exclusion and history retrieval. It never publishes synthetic data on the real sensor topics.
 
 Actual physical tests and deployment evidence are recorded in [docs/test-results.md](docs/test-results.md). Synthetic results do not establish Wi-Fi connectivity or physical sensor acceptance. MQ-2 conditioning/calibration, M1 and vibration installation remain outstanding.
+
+## Optional sensor cloud archive
+
+Cloud Serverless sync is disabled until `.secrets/cloud.json` is configured. See [cloud setup and acceptance](docs/sensor-cloud-setup.md). Production exports only accepted UNO/ESP32 hardware telemetry; synthetic, camera/session and one-second status records are excluded. The local dashboard and gate integration do not depend on cloud. No paid upgrade is permitted. Cloud history is on demand and aggregates raw received telemetry, unlike local status history.

@@ -1,0 +1,44 @@
+# Sensor cloud setup and acceptance
+
+Approved design: InfluxDB Cloud Serverless Free Plan only (zero paid spend), 30-day cloud retention, existing seven-day local storage, no Docker/WSL or firmware changes. No teammate camera/session data is exported. Implementation is optional and local-first.
+
+## 1. Account and bucket setup (user workstation)
+Sign in at https://cloud2.influxdata.com/ or follow the official [Free Plan signup](https://docs.influxdata.com/influxdb3/cloud-serverless/sign-up/). Choose the nearest available free region and verify the Billing page still says Free Plan. Do not upgrade or add paid resources. Free accounts allow two buckets (excluding system buckets); if there is an existing bucket, do not delete data to make room. Use an appropriate free organization/account with capacity, or stop and report the blocker.
+
+Create buckets **parking_sensor_data** and **parking_sensor_test**, both with 30-day retention. Use separate bucket-scoped read-only and write-only API tokens for each. For InfluxQL HTTP reads, create a default DBRP mapping for each bucket with database name equal to bucket name (and a default retention policy, e.g. autogen). Follow the official [DBRP guide](https://docs.influxdata.com/influxdb3/cloud-serverless/query-data/execute-queries/v1-http/) and its linked mapping instructions. The HTTP API is not Flux-compatible.
+
+Do not paste tokens into chat, commit them, include them in screenshots, or use command-line arguments containing tokens. Run in project PowerShell after the approved native environment is installed:
+
+    .\.venv\Scripts\python.exe scripts/configure-cloud.py --test
+    .\.venv\Scripts\python.exe scripts/test-cloud-pipeline.py
+    .\.venv\Scripts\python.exe scripts/configure-cloud.py
+
+The first two commands configure and verify ONLY the isolated test bucket. Run the final command only once the test passes. Credential files are in ignored .secrets; restrict Windows file permissions to your user. The production config is loaded on the next backend restart. Confirm your real free-plan account and bucket retention in the provider UI; the local confirmation flag is not a billing API assertion.
+
+Restart the existing native stack through its stop/start scripts (no flash/wiring changes):
+
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-native.ps1
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-native.ps1
+
+Open http://127.0.0.1:5000, authenticate with existing local credentials. Cloud panel shows last acknowledged write, durable pending, volatile staging, dropped/error counts. Choose Cloud in history and request 5 minutes; use Refresh for updated archive. There is no periodic cloud query. A write acknowledgement is not proof of query visibility; verify actual cloud history.
+
+## 2. Data and durability
+Only accepted hardware UNO and ESP32 records under production local bucket/topic prefix are exported, starting after activation; no implicit backfill. Original backend UTC receive time (not sensor acquisition or upload time), fixed measurement/source tags and field types are retained. Missing numeric and boolean fields are omitted, with explicit validity fields. No camera/plate/photo/session data or redundant status snapshots.
+
+Bounded 1,000-record RAM staging hands off to a separate persistence thread; only committed SQLite rows are durable across restart. SQLite rollback-journal mode and 15 MiB database page cap reserve room for its journal within the approved 32 MiB target. Count cap 50,000; actual capacity may be lower. Drop newest on full; expired records or irrecoverably rejected points are counted. Queue/file failures do not stop local ingestion. Counters reset on process restart. An abrupt kill before SQLite commit can lose RAM staging. Do not claim lossless sync or guaranteed physical disk quota without measuring database/journal and filesystem allocation.
+
+The upload thread sends up to 200 points/100 kB every ten seconds. Retries preserve the same point identity (measurement, tag set, original timestamp), with capped exponential backoff/jitter and Retry-After support. Cloud Serverless partial-write errors may require record isolation; test provider semantics before asserting production idempotency. 401/403/404 back off and preserve the queue. Retention-expired pending rows are removed. Provider quotas are shared at organization level; the Free Plan documented data-in allowance is 5 MB per five minutes. Check the actual plan; no automatic upgrade.
+
+Cloud history uses bounded InfluxQL aggregation (approximately 600 windows, up to 30 days), one concurrent query, no automatic polling. Empty/invalid/low-coverage windows are gaps. Aggregates cannot identify every internal outage; never use archive history for live allocation. Source label distinguishes cloud raw telemetry from local status projections. All network calls use HTTPS certificate verification and server-side credentials.
+
+## 3. Required acceptance evidence (not yet executed in this session)
+
+- Run the existing Python suite and new cloud unit tests: from backend, ..\.venv\Scripts\python.exe -m unittest discover -s tests -v
+- Run node --check dashboard/static/app.js and the existing Chrome dashboard runner. Extend browser verification to cloud selector, on-demand refresh, 30-day query, errors and local recovery.
+- Run real-provider test above and verify one synthetic logical point after duplicate writes. No synthetic production writes.
+- Connect actual hardware; observe cloud acknowledgements, query actual sensor timestamps/values and display Cloud history on dashboard. Record sanitized results without tokens.
+- Disconnect internet without disconnecting local MQTT LAN, observe live local data and durable queue growth, restart backend while offline, confirm retained rows; restore internet, confirm backlog drains and timestamps remain unchanged.
+- Verify bad test credentials, 429/5xx/timeouts, queue cap and partial record errors using isolated fixtures. Check local responsiveness and gap semantics throughout.
+- Measure .runtime/cloud-outbox.sqlite3 plus journal and total footprint during sustained load; measure cloud bytes/quota usage. Document actual results, not estimates.
+
+Implementation session limitation: GitHub changes can be made but the workstation and cloud account cannot be accessed here. New tests are supplied, not reported as passed. Cloud acceptance is pending; issue #1 must stay open. No paid resources, firmware, production credentials, teammate code or existing data were changed.
