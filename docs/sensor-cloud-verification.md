@@ -8,7 +8,7 @@ Date: 2026-11-26, Asia/Bangkok. Branch: `feature/sensor-cloud-storage`, PR #3.
 | Check | Actual result |
 | --- | --- |
 | Original Python suite on feature branch | PASS: 24 tests, 0.542 s |
-| Final expanded Python suite | PASS: 34 tests, 0.604 s, including cloud API isolation, disk errors and authentication/server/network retry retention |
+| Final expanded Python suite | PASS: 35 tests, 0.480 s, including approved empty-bucket rename, cloud API isolation, disk errors and authentication/server/network retry retention |
 | JavaScript syntax | PASS: dashboard app and Chrome runner |
 | Real Chrome dashboard, isolated HTTP fixtures | PASS: original local charts/health/failures/recovery/mobile checks plus cloud selector, 30-day query, on-demand refresh, no automatic cloud polling over 10.5 s, cloud errors with live cards continuing and return to local history |
 | Isolated real Mosquitto/InfluxDB/Flask pipeline | PASS: ACL publish/read allow/deny, real Flux 5m/24h/7d and gaps, retained messages/restart, inconsistent occupancy, freshness, database outage/restart with continued ingestion/backlog recovery, broker reconnect fail-closed |
@@ -38,14 +38,18 @@ Provider quota consumption has **not** been measured yet. Local `attempted_write
 | Acceptance item | Current evidence/status |
 | --- | --- |
 | Free Plan account | User reports being at a Cloud Serverless Free Plan organization dashboard; account UI not independently inspected |
-| Two buckets, 30-day retention and default DBRP mappings | Pending local setup/readback; regional URL and current bucket names requested |
+| Two buckets, 30-day retention and default DBRP mappings | Regional URL supplied: `https://us-east-1-1.aws.cloud2.influxdata.com`. User confirmed `iot_parking` is empty and explicitly approved renaming it to `parking_sensor_data`. Approved rename, test bucket and DBRP setup prepared; actual provider readback pending local setup-token entry |
 | Bucket-scoped runtime credentials | Pending user entry via local interactive script; `.secrets/cloud.json` and `cloud-test.json` absent at initial inspection |
 | Real isolated cloud write/read/duplicate and token-role verification | Attempted; stopped at missing local test configuration with `Cloud verification configuration/response unavailable; no PASS claimed.` No provider requests or real-provider PASS |
-| Production cloud writes from actual UNO/ESP32 | Blocked pending configured cloud and fresh hardware telemetry |
+| Production cloud writes from actual UNO/ESP32 | Pending cloud configuration; fresh hardware telemetry restored as recorded below |
 | Existing dashboard displays actual cloud history | Pending actual writes/readback; fixture browser tests are not this acceptance |
 | Real internet disconnection, durable buffering, backend restart, recovery/duplicate handling and local operation | Pending real provider/hardware baseline; unit/native outage results do not substitute |
 
 Native start was attempted. Existing local InfluxDB became healthy; the authenticated dashboard API responded with `storage_connected=true`, `mqtt_connected=false`, and both UNO/ESP32 stale with no receive timestamp. Cloud was disabled. Start readiness correctly failed. Broker configuration uses `172.20.10.12`, but current PC Wi-Fi was observed as `10.203.218.185`. User was asked to reconnect PC and ESP32 to the original demo hotspot to preserve compiled firmware configuration. No firmware, wiring, firewall or network changes were made by this work. No synthetic data was published to production topics or cloud buckets.
+
+Update at **2026-11-26 06:22:57 UTC (13:22 Bangkok)**: user reconnected the original hotspot; the PC again reported `172.20.10.12`. Native start succeeded. Authenticated API reported `mqtt_connected=true`, `storage_connected=true`, and both UNO/ESP32 `fresh=true`, `payload_valid=true`, with actual receive timestamps 06:22:57 UTC and 06:22:55 UTC respectively. This resolves the local network/hardware ingestion blocker. It does not establish any cloud writes or cloud acceptance; credentials remain pending.
+
+User subsequently supplied the US East regional URL, identified `iot_parking`, confirmed it is empty and approved its rename to `parking_sensor_data`. The first local setup attempt returned HTTP 400; its exact request was not captured, so no rename/resource success is inferred. Review found missing organization IDs in create/DBRP requests. Setup now derives the organization from bucket metadata (or an unambiguous organization lookup), includes it explicitly, and reports/saves only the failing method, endpoint and HTTP status without tokens or response bodies. All 35 Python tests passed after this correction (0.787 s), including the approved rename preserving the bucket ID and organization-scoped create payloads. A corrected local prompt was opened for retry; real provider readback is still required.
 
 ## Reproduce / continue
 
