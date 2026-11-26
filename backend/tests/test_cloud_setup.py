@@ -1,14 +1,49 @@
 import importlib.util
 from pathlib import Path
 import unittest
+import json
+import tempfile
+from unittest.mock import patch
 
 path = Path(__file__).resolve().parents[2]/"scripts/configure-cloud-resources.py"
 spec = importlib.util.spec_from_file_location("cloud_resources",path)
 resources = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(resources)
+config_path = path.parent/'configure-cloud.py'
+config_spec = importlib.util.spec_from_file_location('cloud_configuration',config_path)
+configuration = importlib.util.module_from_spec(config_spec)
+config_spec.loader.exec_module(configuration)
 
 
 class SetupTests(unittest.TestCase):
+    def test_read_scope_rejects_wrong_or_all_buckets(self):
+        for names,valid in [(['parking_sensor_data'],True),(['parking_sensor_test'],False),
+                            (['parking_sensor_data','parking_sensor_test'],False)]:
+            with self.subTest(names=names), patch.object(configuration.CloudClient,'request',
+                    return_value=json.dumps({'buckets':[{'name':n} for n in names]}).encode()):
+                if valid:configuration.validate_read_scope({'bucket':'parking_sensor_data'})
+                else:
+                    with self.assertRaises(ValueError):configuration.validate_read_scope({'bucket':'parking_sensor_data'})
+
+    def test_replace_write_preserves_read_and_rejects_identical_token(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary); (root/'.secrets').mkdir()
+            saved=root/'.secrets/cloud.json'
+            original={'url':'https://us-east-1-1.aws.cloud2.influxdata.com','bucket':'parking_sensor_data',
+                      'free_plan_confirmed':True,'read_token':'test-read-only','write_token':'test-old-write'}
+            saved.write_text(json.dumps(original))
+            with patch.object(configuration,'ROOT',root), patch('sys.stdin.isatty',return_value=True), \
+                    patch('sys.argv',['configure-cloud.py','--free-plan-confirmed','--replace-write']), \
+                    patch.object(configuration,'restrict_file'), patch.object(configuration,'validate_read_scope'), patch('builtins.print'):
+                with patch.object(configuration.getpass,'getpass',return_value='test-new-write'):
+                    configuration.main()
+                result=json.loads(saved.read_text())
+                self.assertEqual(result['read_token'],original['read_token'])
+                self.assertEqual(result['write_token'],'test-new-write')
+                with patch.object(configuration.getpass,'getpass',return_value=original['read_token']):
+                    with self.assertRaises(SystemExit):configuration.main()
+                self.assertEqual(json.loads(saved.read_text()),result)
+
     def test_approved_empty_bucket_rename_keeps_id_and_only_creates_test(self):
         buckets=[{'id':'original','orgID':'test-org','name':'iot_parking','retentionRules':[]}]
         mappings=[];mutations=[]

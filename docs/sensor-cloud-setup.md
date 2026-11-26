@@ -17,6 +17,8 @@ Do not paste tokens into chat, commit them, include them in screenshots, or use 
 
 The first two commands configure and verify ONLY the isolated test bucket. Run the final command only once the test passes. Credential files are in ignored .secrets; the script enforces restricted Windows permissions before writing credentials and requires an interactive terminal. Tokens must never be piped or passed on the command line. The production config is loaded on the next backend restart. Confirm your real free-plan account and bucket retention in the provider UI; the local confirmation flag is not a billing API assertion.
 
+The helper checks that the read token can enumerate exactly its intended bucket, refusing wrong/all-bucket access before saving. Use `--replace-read` or `--replace-write` to replace only one role while preserving the other; include `--test` for isolated credentials. A provider/network failure preserves the existing file. Revoke accidentally broad and temporary setup tokens in the provider UI.
+
 Restart the existing native stack through its stop/start scripts (no flash/wiring changes):
 
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-native.ps1
@@ -46,3 +48,5 @@ Cloud history uses bounded InfluxQL aggregation (approximately 600 windows, up t
 - Measure .runtime/cloud-outbox.sqlite3 plus journal and total footprint during sustained load; measure cloud bytes/quota usage. Document actual results, not estimates.
 
 Actual execution status is recorded in [sensor-cloud-verification.md](sensor-cloud-verification.md). Passing local regression tests does not establish provider deployment, physical telemetry or internet-outage acceptance. Keep PR #3 draft until the real applicable acceptance tests pass. No paid upgrade, firmware or teammate change is authorized by this workflow.
+
+Use `scripts/verify-cloud-production.py` for read-only exact timestamp/value and history API acceptance, then `node scripts/verify-cloud-dashboard.cjs` for actual Chrome rendering. `scripts/verify-cloud-outage.py` records baseline, offline-before-restart, offline-after-restart and recovered phases. Keep the PC and ESP32 on the original hotspot LAN throughout; switch only its upstream internet. The offline checks require both external HTTPS probes to fail while actual hardware and local history remain fresh. The restart check compares hashes of committed rows. Recovery requires those rows acknowledged and absent from the outbox, checks representative first/last original source timestamps in cloud, and deliberately retries one **existing hardware identity** to verify one logical point. It never invents production telemetry. Receipts and sensor-only evidence stay under ignored `.runtime`; stage failure is not acceptance.

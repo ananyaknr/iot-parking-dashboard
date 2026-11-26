@@ -9,6 +9,17 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 from cloud_storage import CloudClient, load_config, CloudError
 
+
+def authorization_denied(response):
+    """InfluxQL can return an authorization error inside HTTP 200 JSON."""
+    results = response.get('results', [])
+    if any(item.get('series') for item in results):
+        return False  # Never accept a mixed response which exposes data.
+    errors = [str(response.get('error', ''))] + [str(item.get('error', '')) for item in results]
+    return any(any(word in error.lower() for word in
+                   ('unauthor', 'not authorized', 'forbidden', 'permission', 'access denied'))
+               for error in errors)
+
 def main():
     client = CloudClient(load_config(ROOT / ".secrets" / "cloud-test.json", testing=True))
     stamp = time.time_ns()
@@ -28,11 +39,12 @@ def main():
     query = ('SELECT count("sample_present") AS samples, mean("a1_distance_cm") AS value '
              'FROM "parking_node" WHERE time = ' + str(stamp) + 'ns')
     try:
-        client.request('/query',{'db':client.config['bucket'],'epoch':'ns','q':query},'write_token')
+        probe = client.request('/query',{'db':client.config['bucket'],'epoch':'ns','q':query},'write_token')
     except CloudError as exc:
         if exc.code not in (401,403):raise
     else:
-        raise SystemExit('Write token can query; replace it with a write-only test-bucket token.')
+        if not authorization_denied(json.loads(probe)):
+            raise SystemExit('Write-token query was not denied; verify write-only test-bucket permissions.')
     deadline = time.monotonic() + 90
     while time.monotonic() < deadline:
         raw = client.request("/query", {"db": client.config["bucket"], "epoch":"ns","q":query}, "read_token")
