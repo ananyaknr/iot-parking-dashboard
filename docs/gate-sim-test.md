@@ -3,6 +3,15 @@
 User reports successful standalone U1 D2/D3, U2 D4/D5, KY-002 D6 and I2C LCD A4/A5 tests, including mock CAR/SUPERCAR display. GPIO26 → UNO D10 has been connected; existing UNO D11 → divider → GPIO25 and common ground remain. Reverse UART not yet verified. SG90 remains disconnected.
 
 ## Upload
+
+Recovery procedure verified on 2026-11-26: close native serial monitors, unplug
+UNO USB and disconnect BOTH UART signal paths at ESP32 GPIO25/26. Leave ESP32
+USB/sensors connected; upload at 115200. Wait for hash verification before
+restoring the two signal paths and UNO USB. Partial isolation was unreliable.
+No full erase or toolchain reinstall is necessary. Current acceptance is in
+[gate-v2-verification.md](gate-v2-verification.md); UNO USB instability remains
+the final-session blocker.
+
 Keep original firmware intact. Copy local ignored secrets.h from firmware/esp32_gateway/ into firmware/esp32_gate_sim/ (never commit). Open firmware/esp32_gate_sim/esp32_gate_sim.ino, select existing ESP32 board and verify COM9 before uploading. Then open firmware/uno_gate_sim/uno_gate_sim.ino, verify UNO COM8, compile/upload with the same LiquidCrystal_I2C library as the successful diagnostic. Close serial monitors before uploads. Do not attach servo. Both USB ports power existing boards.
 
 ## Test

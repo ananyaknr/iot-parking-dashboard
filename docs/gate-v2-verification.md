@@ -1,5 +1,68 @@
 # Gate v2 verification — 2026-11-26
 
+## Hardware recovery update, 18:25 Bangkok
+
+### Follow-up at 18:39 Bangkok
+
+Both COM8 and COM9 were present after the owner's latest reconnect. New real
+gate output at 18:35:27 reports U1 6.4 cm and **U2 12.3 cm**, both detected,
+boot_wait, counters zero, servo false. U2 is therefore no longer categorically
+unreadable; neither zone was clear in this sample. The earlier claim that a
+different cable was definitely needed is not established by the available data.
+
+The native ESP32 log records `rst:0x10 (RTCWDT_RTC_RESET)` at 18:35:26 and one
+gate frame afterward, followed by no further environmental/gate forwarding.
+Backend checks at 18:36 show broker/storage connected but gate/environment stale.
+The 16 KiB task stacks **did not establish a fix**; stack exhaustion is still not
+proven. Likewise, changing monitor software did not establish a .NET-specific
+bug: readers differ in DTR/RTS handling, and opening the UNO monitor produced a
+new startup banner even with those lines configured off. Avoid attributing all
+corruption to either the cable or the capture library.
+
+Remaining diagnosis: distinguish the ESP32 application stall from electrical
+interference/power/reset coupling with the connected UNO. Inspect actual UART
+divider, power and ground connections; use bounded stage/reset diagnostics if
+the wiring is sound. Do not repeat upload/reconnect cycles without new evidence.
+The full gate cycle, vibration and LCD acceptance remain unverified.
+
+This update supersedes the earlier ESP32-upload blocker below.
+
+- ESP32 COM9 upload PASSED at 115200 after disconnecting **UNO USB and both
+  UART signals together**, leaving ESP32 sensors connected. Written data passed
+  hash verification. Disconnecting only UART while UNO USB remained attached
+  did not reliably permit bootloader entry. No full-flash erase or toolchain
+  reinstall was performed.
+- Actual ESP32 environmental telemetry reached MQTT, backend, local InfluxDB and
+  `parking_sensor_test`. Real Chrome cloud-history readback passed at 18:14:47:
+  108 numeric points each for temperature, humidity, light and gas; local-history
+  recovery passed. No synthetic production writes.
+- Actual UNO v2 telemetry also reached the isolated cloud: boot
+  `6fbeafadd54c837118a63a095274ee86`, sample at 11:14:30.700355 UTC, U1 26.9 cm,
+  U2 null/unknown, state boot_wait, arrival/completed counters zero, servo false.
+  This proves receipt of real gate data, not a completed gate cycle or a valid U2.
+- The initial .NET SerialPort capture produced unreliable/garbled output. Native
+  Arduino monitoring gave usable application output; use
+  `powershell -File scripts/capture-gate-hardware.ps1 -Port COM9` (and the actual
+  UNO port in another terminal). Commands are newline-delimited; Ctrl+C releases
+  a port before upload. Raw logs/receipts remain ignored under `.runtime`.
+- Forwarding stopped after two full gate frames in the initial run. A minimal
+  task-stack adjustment to 16 KiB for loop/network compiled and uploaded with
+  hash verification (996,009 bytes flash, 50,680 bytes static RAM). It is a
+  runtime mitigation; the root cause and sustained full-gate behavior remain
+  unconfirmed because the UNO USB connection repeatedly disappeared.
+- After restoration, ESP32 environmental monitoring remains operational, but
+  Windows repeatedly lists COM9 without the UNO CH340/COM8 device. Reseating
+  briefly restored COM8 once, then it disappeared again. A different UNO data
+  cable/direct USB connection is needed before final physical acceptance.
+- U1 arrival/open, U2 passage/clear/close, KY tapping and CAR/SUPERCAR LCD display
+  remain **not accepted in this run**. Test LCD input was sent, but no correlated
+  acknowledgement was obtained. Servo remains completely disabled; teammate
+  recognition delivery remains disabled pending agreement.
+
+No 51-test Python, C++, fixture, outage or stress suite was repeated for this
+recovery assignment. Checks were restricted to upload, live serial, actual
+cloud readback and the real isolated environmental dashboard.
+
 This is an evidence ledger, not physical acceptance. Historical verification
 documents remain intact. U1/U2, KY-002 tapping and LCD diagnostic success were
 reported by the owner before this run; they are not independently verified here.

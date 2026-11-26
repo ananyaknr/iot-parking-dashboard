@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('../.tools/browser-check/node_modules/playwright');
 const root = path.resolve(__dirname, '..');
+const isolated = process.argv.includes('--isolated-gate');
 let step = 'launch';
 (async () => {
   const env = Object.fromEntries(fs.readFileSync(path.join(root,'.env'),'utf8').split(/\r?\n/)
@@ -16,7 +17,7 @@ let step = 'launch';
       password:env.DASHBOARD_PASSWORD || env.GRAFANA_PASSWORD}});
     const errors=[];page.on('pageerror',error=>errors.push(error.message));
     step = 'local dashboard';
-    await page.goto('http://127.0.0.1:5000');
+    await page.goto('http://127.0.0.1:'+(isolated?'5001':'5000'));
     await page.waitForFunction(()=>charts.length===6 && !historyBusy);
     await page.selectOption('#range','30');
     await page.waitForFunction(()=>!historyBusy);
@@ -38,7 +39,7 @@ let step = 'launch';
     assert.ok(numericPoints[1].every(count=>count>0),'Actual temperature/humidity cloud points required');
     assert.ok(numericPoints[2][0]>0 && numericPoints[3][0]>0);
     assert.deepEqual(errors,[]);
-    const screenshot = '.runtime/cloud-dashboard-chrome.png';
+    const screenshot = isolated?'.runtime/gate-cloud-dashboard-chrome.png':'.runtime/cloud-dashboard-chrome.png';
     await page.screenshot({path:path.join(root,screenshot),fullPage:true});
     step = 'local history recovery';
     await page.selectOption('#history-source','local');
@@ -48,8 +49,9 @@ let step = 'launch';
     const receipt = {verified_at_utc:new Date().toISOString(),browser:'Chrome',
       range_minutes:30,cloud_numeric_points:numericPoints,hardware_status:hardwareStatus,local_history_recovery:'PASS',
       javascript_errors:errors,screenshot};
-    fs.writeFileSync(path.join(root,'.runtime/cloud-dashboard-verification.json'),JSON.stringify(receipt,null,2));
-    console.log('PASS real Chrome: actual production cloud history, hardware status cards and local history recovery.');
+    receipt.environment=isolated?'isolated_gate_test':'production';
+    fs.writeFileSync(path.join(root,isolated?'.runtime/gate-cloud-dashboard-verification.json':'.runtime/cloud-dashboard-verification.json'),JSON.stringify(receipt,null,2));
+    console.log('PASS real Chrome: actual '+receipt.environment+' environmental cloud history, hardware status cards and local history recovery.');
     console.log(JSON.stringify(receipt,null,2));
   } finally {await browser.close();}
 })().catch(()=>{console.error('Real dashboard acceptance failed at '+step+'; no credentials printed and no PASS claimed.');process.exitCode=1;});

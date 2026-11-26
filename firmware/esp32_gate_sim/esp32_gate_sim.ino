@@ -7,6 +7,9 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include "secrets.h"
+// Full gate JSON can be decoded while the environmental ADC loop drains UART.
+// Reserve room for those nested frames and the MQTT hand-off on the ESP32.
+SET_LOOP_TASK_STACK_SIZE(16384);
 #ifndef WIFI_ENTERPRISE
 #define WIFI_ENTERPRISE 0
 #endif
@@ -288,7 +291,7 @@ void setup() {
   pinMode(LDR_PIN, INPUT); pinMode(MQ2_PIN, INPUT);
   publishQueue = xQueueCreate(16, sizeof(Message));
   displayQueue = xQueueCreate(4,sizeof(DisplayMessage));
-  if (!publishQueue || !displayQueue || xTaskCreate(networkTask, "network", 8192, nullptr, 1, nullptr) != pdPASS) {
+  if (!publishQueue || !displayQueue || xTaskCreate(networkTask, "network", 16384, nullptr, 1, nullptr) != pdPASS) {
     Serial.println(F("[MQTT] task setup failed; USB telemetry remains active"));
   }
 }
