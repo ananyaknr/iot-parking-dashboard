@@ -57,6 +57,12 @@ def validate(topic, payload):
                 raise ValueError("occupancy must be boolean or null")
             if distance is None and occupied is not None:
                 raise ValueError("occupancy without valid distance")
+            # Firmware uses 15/18 cm hysteresis and prints one decimal place.
+            # Inside the band either prior state is legitimate. Allow half a
+            # display unit at each threshold for wire-format rounding.
+            if distance is not None and ((occupied is False and distance < 14.95)
+                                         or (occupied is True and distance > 18.05)):
+                raise ValueError("occupancy contradicts distance thresholds")
         if message["m1_distance_cm"] is not None or message["m1_occupied"] is not None:
             raise ValueError("M1 is not installed in this deployment")
         if (message["vibration"] is not None or message["vibration_count"] is not None
@@ -80,12 +86,17 @@ class Source:
     payload_valid: bool = False
 
     def accept(self, message, now):
+        if self.last_received is not None and now <= self.last_received:
+            return False
         self.message = dict(message)
         self.last_valid = now
         self.last_received = now
         self.payload_valid = True
+        return True
 
     def reject(self, now):
+        if self.last_received is not None and now <= self.last_received:
+            return False
         # Invalidate the current view immediately; never keep displaying an old valid reading.
         self.message = {}
         self.last_received = now

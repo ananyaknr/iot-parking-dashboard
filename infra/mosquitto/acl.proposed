@@ -1,0 +1,19 @@
+# Candidate only. start-native.ps1 continues to use acl until migration approval.
+user parking-gateway
+topic write parking/node/telemetry
+topic write parking/gateway/telemetry
+
+user parking-backend
+topic read parking/node/telemetry
+topic read parking/gateway/telemetry
+topic read parking/camera/result
+
+# Legacy camera ingress only; future arrival/gate/session permissions need agreement.
+user parking-teammate
+topic write parking/camera/result
+
+user parking-test-publisher
+topic write parking/test/#
+
+user parking-test-backend
+topic read parking/test/#
