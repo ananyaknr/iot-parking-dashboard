@@ -8,6 +8,7 @@ import base64
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import sqlite3
@@ -24,7 +25,12 @@ from cloud_storage import CloudClient, load_config, CloudError
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('phase', choices=['baseline','offline-before-restart','offline-after-restart','recovered'])
+    parser.add_argument('--controlled-https-failure', action='store_true',
+                        help='Separate transport-fault evidence; does not establish physical internet loss')
     args = parser.parse_args()
+    prefix = 'cloud-transport' if args.controlled_https_failure else 'cloud-outage'
+    if args.controlled_https_failure and args.phase.startswith('offline'):
+        assert os.environ.get('HTTPS_PROXY') == 'http://127.0.0.1:9', 'Controlled proxy environment required'
     env = dict(line.split('=',1) for line in (ROOT/'.env').read_text().splitlines()
                if line and not line.startswith('#') and '=' in line)
     auth = base64.b64encode((env.get('DASHBOARD_USERNAME',env.get('GRAFANA_USERNAME','parking-admin'))
@@ -35,9 +41,10 @@ def main():
                                  headers={'Authorization':'Basic '+auth}),timeout=10) as response:
             return json.load(response)
     client = CloudClient(load_config())
+    probe_opener = build_opener() if args.controlled_https_failure else opener
     def internet(url):
         try:
-            with opener.open(url,timeout=6) as response:
+            with probe_opener.open(url,timeout=6) as response:
                 return True
         except HTTPError as error:
             error.close()
@@ -66,21 +73,22 @@ def main():
     hashes = [hashlib.sha256(line.encode()).hexdigest() for line in lines]
     files = [outbox,Path(str(outbox)+'-journal'),Path(str(outbox)+'-wal'),Path(str(outbox)+'-shm')]
     receipt = {'verified_at_utc':datetime.now(timezone.utc).isoformat(),'phase':args.phase,
+               'outage_type':'controlled_https_proxy_failure' if args.controlled_https_failure else 'physical_internet_outage',
                'backend_process':json.loads((ROOT/'.runtime/processes.json').read_text(encoding='utf-8-sig'))['backend'],
                'connectivity':connected,'cloud':latest['cloud'],'pending_sqlite_rows':len(lines),
                'pending_hashes':hashes,'outbox_file_bytes':{file.name:file.stat().st_size for file in files if file.exists()},
                'drive_free_bytes':shutil.disk_usage(ROOT).free,'local_history':'PASS',
                'hardware_received_at':{source:latest['sources'][source]['last_received_utc'] for source in ('uno','esp32')}}
-    receipt_path = ROOT/('.runtime/cloud-outage-'+args.phase+'.json')
+    receipt_path = ROOT/('.runtime/'+prefix+'-'+args.phase+'.json')
     if args.phase.startswith('offline'):
         assert not any(connected.values()), 'Both external HTTPS probes must fail during actual internet outage'
         assert latest['cloud']['error'] == 'network_error', 'Wait for actual cloud network failure'
         assert len(lines) >= 5, 'Wait for durable hardware buffering'
         if args.phase == 'offline-before-restart':
             # Private local evidence contains actual sensor lines only, never credentials.
-            (ROOT/'.runtime/cloud-outage-hardware-lines.json').write_text(json.dumps(lines))
+            (ROOT/('.runtime/'+prefix+'-hardware-lines.json')).write_text(json.dumps(lines))
         else:
-            before = json.loads((ROOT/'.runtime/cloud-outage-offline-before-restart.json').read_text())
+            before = json.loads((ROOT/('.runtime/'+prefix+'-offline-before-restart.json')).read_text())
             assert receipt['backend_process']['started'] != before['backend_process']['started'], 'Backend was not restarted'
             assert set(before['pending_hashes']).issubset(hashes), 'Committed rows did not survive restart'
             receipt['committed_rows_survived_restart'] = len(before['pending_hashes'])
@@ -89,7 +97,7 @@ def main():
         assert not latest['cloud']['error'] and latest['cloud']['uploaded'] > 0, 'Cloud acknowledgement required'
     else:
         assert all(connected.values()) and not latest['cloud']['error']
-        saved = json.loads((ROOT/'.runtime/cloud-outage-hardware-lines.json').read_text())
+        saved = json.loads((ROOT/('.runtime/'+prefix+'-hardware-lines.json')).read_text())
         assert not set(hashlib.sha256(line.encode()).hexdigest() for line in saved).intersection(hashes), 'Backlog not yet drained'
         assert latest['cloud']['uploaded'] >= len(saved), 'No recovery upload acknowledgement'
         assert latest['cloud']['dropped'] == 0, 'Recovery dropped records'
@@ -119,7 +127,7 @@ def main():
         receipt['existing_hardware_duplicate_retry'] = 'PASS'
         receipt['verification_transfer'] = client.usage()
     receipt_path.write_text(json.dumps(receipt,indent=2))
-    print('PASS actual hardware outage stage: '+args.phase)
+    print('PASS actual hardware '+receipt['outage_type']+' stage: '+args.phase)
     print(json.dumps({key:value for key,value in receipt.items() if key != 'pending_hashes'},indent=2))
 
 
