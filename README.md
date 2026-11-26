@@ -92,7 +92,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-native.ps1
 
 Start is idempotent for recorded, verified project-owned processes. Stop checks executable path and start time before stopping a recorded PID; it does not stop unrelated services. Python receives a stop-file request before the native processes are stopped. InfluxDB keeps its Bolt database and write-ahead log under `.runtime/influxdb` for restart recovery.
 
-- Dashboard: **http://127.0.0.1:5000**. Browser HTTP Basic login uses the generated local credentials in `.env`: `GRAFANA_USERNAME` / `GRAFANA_PASSWORD` from the earlier setup are currently reused. These variable names do not indicate that Grafana is running. `DASHBOARD_USERNAME` / `DASHBOARD_PASSWORD` can override them.
+- Dashboard: **http://127.0.0.1:5000**. Set `DASHBOARD_AUTH_REQUIRED=no` in `.env` for password-free access from this computer (also applies to the isolated :5001 demo). Restart the backends after changing it. With authentication enabled, browser HTTP Basic login uses `DASHBOARD_USERNAME` / `DASHBOARD_PASSWORD`, falling back to the earlier `GRAFANA_USERNAME` / `GRAFANA_PASSWORD` settings. The server binds to loopback only.
 - InfluxDB: **http://127.0.0.1:8086**, local only. Organization `parking`, bucket `sensor_data`, seven-day retention.
 - MQTT: the PC LAN IPv4 in `.env` (`MQTT_BIND_IP`), TCP 1883, username/password required. Never use localhost as the ESP32 broker address.
 - Logs: `docs/runtime-logs`; runtime databases/process ledger: `.runtime`; credentials: `.env`, `.secrets`, and `firmware/esp32_gateway/secrets.h`. These paths are ignored by Git.
@@ -157,7 +157,7 @@ The backend validates keys, source/topic agreement, JSON types, ranges and nonfi
 
 Measurements use `kind=telemetry` for actual received messages and `kind=status` for one-second freshness/current-state projections. `data_origin=hardware` is the normal source; synthetic tests use a separate bucket and `data_origin=synthetic`. Numeric status fields are omitted when missing/stale; validity flags explicitly become false. A1 allocation requires a fresh valid vacant reading. M1 and vibration remain not installed.
 
-Authenticated local APIs:
+Local APIs (authentication is configurable as described above):
 
 - `GET /api/latest`: all three source views, validity, freshness, current values, source receive timestamps and broker/database connection state.
 - `GET /api/history?source=uno&field=a1_distance_cm&minutes=30`: UTC historical points. Source/field identifiers are allowlisted; range is 1–10080 minutes and results are windowed to approximately 600 points.

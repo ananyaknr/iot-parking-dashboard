@@ -75,4 +75,8 @@ if(-not $SkipBackend){
     if(-not $backendReady){throw 'Backend did not become ready; inspect backend.stderr.log'}
 }
 Write-Host 'Native services started. Dashboard: http://127.0.0.1:5000'
-Write-Host 'Login: parking-admin. Password is stored locally in .env (GRAFANA_PASSWORD); never paste it into chat.'
+if ($env:DASHBOARD_AUTH_REQUIRED -eq 'no') {
+    Write-Host 'Local dashboard login disabled.'
+} else {
+    Write-Host 'Dashboard login uses the local credentials in .env; never paste them into chat.'
+}

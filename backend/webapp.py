@@ -1,4 +1,4 @@
-"""Local-only authenticated dashboard; tokens never leave this process."""
+"""Local-only dashboard with optional authentication; tokens stay in this process."""
 import hmac
 import threading
 import os
@@ -42,6 +42,9 @@ def create_app(latest, query_api, bucket, org, cloud=None,gate_events=None,recog
     @app.before_request
     def authenticate():
         if request.path == "/health":
+            return None
+        if (os.environ.get("DASHBOARD_AUTH_REQUIRED", "yes") == "no"
+                and request.remote_addr in ("127.0.0.1", "::1")):
             return None
         auth = request.authorization
         username = os.environ.get("DASHBOARD_USERNAME", os.environ.get("GRAFANA_USERNAME", "parking-admin"))
