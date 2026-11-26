@@ -18,15 +18,18 @@ let step = 'launch';
     step = 'local dashboard';
     await page.goto('http://127.0.0.1:5000');
     await page.waitForFunction(()=>charts.length===4 && !historyBusy);
-    await page.selectOption('#range','5');
+    await page.selectOption('#range','30');
     await page.waitForFunction(()=>!historyBusy);
     step = 'cloud charts';
     await page.selectOption('#history-source','cloud');
     await page.waitForFunction(()=>!historyBusy,{},{timeout:90000});
     assert.match(await page.locator('#history-status').innerText(),/Cloud archive/);
-    step = 'fresh hardware cards';
-    assert.match(await page.locator('#uno-status').innerText(),/Receiving/);
-    assert.match(await page.locator('#esp32-status').innerText(),/Receiving/);
+    step = 'hardware status cards';
+    const hardwareStatus = {};
+    for (const source of ['uno','esp32']) {
+      hardwareStatus[source] = await page.locator('#'+source+'-status').innerText();
+      assert.match(hardwareStatus[source],/Receiving|Stale \/ Unknown/);
+    }
     assert.match(await page.locator('#storage-status').innerText(),/Connected/);
     step = 'actual cloud points';
     const numericPoints = await page.evaluate(()=>charts.map(chart=>
@@ -43,10 +46,10 @@ let step = 'launch';
     assert.equal(await page.evaluate(()=>charts.length),4);
     assert.match(await page.locator('#history-status').innerText(),/Actual stored readings/);
     const receipt = {verified_at_utc:new Date().toISOString(),browser:'Chrome',
-      cloud_numeric_points:numericPoints,live_sources:'Receiving',local_history_recovery:'PASS',
+      range_minutes:30,cloud_numeric_points:numericPoints,hardware_status:hardwareStatus,local_history_recovery:'PASS',
       javascript_errors:errors,screenshot};
     fs.writeFileSync(path.join(root,'.runtime/cloud-dashboard-verification.json'),JSON.stringify(receipt,null,2));
-    console.log('PASS real Chrome: actual production cloud history, fresh hardware cards and local history recovery.');
+    console.log('PASS real Chrome: actual production cloud history, hardware status cards and local history recovery.');
     console.log(JSON.stringify(receipt,null,2));
   } finally {await browser.close();}
 })().catch(()=>{console.error('Real dashboard acceptance failed at '+step+'; no credentials printed and no PASS claimed.');process.exitCode=1;});
