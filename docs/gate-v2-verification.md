@@ -26,6 +26,9 @@ physically disconnected; D9 remains unused and recognition remains disabled.
 
 Completed cycle boot ID: `b3d3741f9f3849a396cd1012ef925eac`.
 Passage ID: `v2:b3d3741f9f3849a396cd1012ef925eac:p:1`.
+Reviewable artifacts: [sanitized receipt](evidence/gate-demo-20261126/receipt.json),
+[local dashboard](evidence/gate-demo-20261126/local-dashboard.png), and
+[cloud dashboard](evidence/gate-demo-20261126/cloud-dashboard.png).
 These timestamps are actual MQTT receive times in Bangkok:
 
 | Time | Event / state | U1 cm | U2 cm | Arrivals / completed |
@@ -64,7 +67,7 @@ repeated. Only the changed C++ core, necessary UNO build/upload, actual hardware
 readbacks and actual hardware dashboard were checked.
 
 **Remaining limits:** essential servo-disabled hardware demonstration passed.
-Keep PR draft/unmerged pending review; servo power/actuation and camera/teammate
+PR is ready for review and remains unmerged; servo power/actuation and camera/teammate
 integration remain deferred. Sensor placement/crosstalk robustness, precise
 threshold calibration, vibration semantics and long-duration operation remain
 follow-up acceptance work. Lightweight native Windows deployment, production
