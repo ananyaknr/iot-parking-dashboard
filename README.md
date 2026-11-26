@@ -4,6 +4,11 @@ Native Windows deployment: **UNO → UART → ESP32 → Wi-Fi → authenticated 
 
 No Docker, WSL, Node.js, React or Grafana is required. Earlier Compose/Grafana files are preserved as inactive reference material. Do not run them for this deployment.
 
+Issue #1 remediation: see the [ownership and rubric ledger](docs/issue-1-status.md),
+[proposed team interfaces](docs/integration-v1-proposal.md), [sensor cloud plan](docs/sensor-cloud-plan.md)
+and [verification evidence](docs/issue-1-verification.md). Shared interfaces remain proposed;
+hardware and cloud acceptance are incomplete. Node.js is optional for browser regression testing only.
+
 ## Start and stop
 
 From this project directory in PowerShell:
@@ -87,6 +92,12 @@ Authenticated local APIs:
 - `GET /health`: readiness only; no credentials or telemetry exposed.
 
 The responsive dashboard refreshes live cards every two seconds and history every ten seconds. Missing/stale sources display Unknown. MQ-2 values are raw ADC and explicitly uncalibrated, never ppm.
+
+Broker connection, ingestion, source freshness and local write health are reported separately.
+Database writes run in a bounded background worker; `/api/latest` exposes receive/write queue
+depth, rejection/discard/drop counters and write failures. Backlogs are volatile and can lose
+data at capacity or shutdown. History uses full timestamps on a numeric axis; missing windows
+and windows containing invalid status readings display as gaps. Display dates use browser local time.
 
 ## Verification
 

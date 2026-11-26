@@ -1,8 +1,10 @@
 import base64
 import os
 import unittest
+from datetime import datetime, timezone, timedelta
+from types import SimpleNamespace
 from unittest.mock import patch
-from webapp import create_app
+from webapp import create_app, history_points
 
 class Queries:
     def query(self, text, org):
@@ -27,6 +29,30 @@ class WebTests(unittest.TestCase):
         html=self.client.get("/",headers=self.headers).get_data(as_text=True)
         self.assertIn('/static/vendor/chart.umd.min.js',html)
         self.assertNotIn('cdn.',html)
-        self.assertEqual(self.client.get('/api/history',headers=self.headers).json["points"],[])
+        points = self.client.get('/api/history',headers=self.headers).json["points"]
+        self.assertTrue(points)
+        self.assertTrue(all(p['value'] is None for p in points))
+
+    def test_history_midnight_multiday_seven_days_and_gaps(self):
+        for minutes in (30, 1440, 4320, 10080):
+            stop = datetime(2026, 11, 26, 0, 15, tzinfo=timezone.utc)
+            start = stop - timedelta(minutes=minutes)
+            every = max(1, (minutes * 60 + 599) // 600)
+            end = (int(start.timestamp()) // every + 1) * every
+            def record(offset, valid):
+                return SimpleNamespace(values={'_stop': datetime.fromtimestamp(end+offset*every, timezone.utc),
+                                              'total': 60., 'count': 2, 'valid': valid})
+            points = history_points([record(0, True), record(1, False), record(3, True)],start,stop,every)
+            self.assertLessEqual(len(points), 601)
+            self.assertEqual([p['value'] for p in points[:4]], [30., None, None, 30.])
+            times = [datetime.fromisoformat(p['time']) for p in points]
+            self.assertEqual(times, sorted(set(times)))
+            self.assertNotEqual(times[0].date(), times[-1].date())
+
+    def test_history_storage_outage(self):
+        with patch.object(Queries, 'query', side_effect=RuntimeError('offline')):
+            response=self.client.get('/api/history', headers=self.headers)
+            self.assertEqual(response.status_code, 503)
+            self.assertEqual(response.json['points'], [])
 
 if __name__=="__main__":unittest.main()

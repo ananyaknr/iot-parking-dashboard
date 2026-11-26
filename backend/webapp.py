@@ -1,6 +1,8 @@
 """Local-only authenticated dashboard; tokens never leave this process."""
 import hmac
 import os
+import math
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 from flask import Flask, Response, jsonify, render_template, request
@@ -11,6 +13,20 @@ HISTORY = {
     "esp32": ("parking_gateway", {"temperature_c", "humidity_pct", "light_raw", "gas_raw"}),
     "camera": ("parking_camera", {"confidence"}),
 }
+
+
+def history_points(records, start, stop, every):
+    """Fill empty windows and keep any invalid window as a visible gap."""
+    values = {}
+    for record in records:
+        row = record.values
+        end = row["_stop"].timestamp()
+        value = row.get("total", 0) / row["count"] if row.get("count") else None
+        values[end] = value if row.get("valid") and value is not None and math.isfinite(value) else None
+    first = (int(start.timestamp()) // every + 1) * every
+    return [{"time": datetime.fromtimestamp(min(end, stop.timestamp()), timezone.utc).isoformat(),
+             "value": values.get(end)}
+            for end in range(first, math.ceil(stop.timestamp() / every) * every + 1, every)]
 
 def create_app(latest, query_api, bucket, org):
     app = Flask(__name__, template_folder=str(ROOT / "dashboard" / "templates"),
@@ -62,18 +78,27 @@ def create_app(latest, query_api, bucket, org):
         measurement = HISTORY[source][0]
         # Only whitelisted identifiers enter Flux. Null/invalid snapshots are explicit gaps.
         every = max(1, (minutes * 60 + 599) // 600)
-        query = f'''from(bucket: "{bucket}")
-          |> range(start: -{minutes}m)
+        stop = datetime.now(timezone.utc)
+        start = datetime.fromtimestamp(stop.timestamp() - minutes * 60, timezone.utc)
+        query = f'''from(bucket: {json.dumps(bucket)})
+          |> range(start: time(v: "{start.isoformat()}"), stop: time(v: "{stop.isoformat()}"))
           |> filter(fn: (r) => r._measurement == "{measurement}" and r.kind == "status")
           |> filter(fn: (r) => r._field == "{field}" or r._field == "{field}_valid")
           |> pivot(rowKey: ["_time"], columnKey: ["_field"], valueColumn: "_value")
-          |> filter(fn: (r) => r.{field}_valid and exists r.{field})
-          |> keep(columns: ["_time", "_start", "_stop", "{field}"])
-          |> rename(columns: {{"{field}": "_value"}})
-          |> aggregateWindow(every: {every}s, fn: mean, createEmpty: true)'''
+          |> group(columns: [])
+          |> sort(columns: ["_time"])
+          |> window(every: {every}s)
+          |> reduce(identity: {{total: 0.0, count: 0, valid: true, last_ns: 0}},
+            fn: (r, accumulator) => ({{
+              total: accumulator.total + (if exists r.{field} then float(v: r.{field}) else 0.0),
+              count: accumulator.count + (if exists r.{field} then 1 else 0),
+              last_ns: int(v: r._time),
+              valid: accumulator.valid and (if exists r.{field}_valid then r.{field}_valid else false) and exists r.{field}
+                and (accumulator.last_ns == 0 or int(v: r._time) - accumulator.last_ns <= 10000000000)
+            }}))'''
         try:
             records = [record for table in query_api.query(query, org=org) for record in table.records]
-            points = [{"time": r.get_time().isoformat(), "value": r.get_value()} for r in records]
+            points = history_points(records, start, stop, every)
             return jsonify(source=source, field=field, minutes=minutes, interval_seconds=every, points=points)
         except Exception:
             app.logger.warning("History query unavailable", exc_info=False)

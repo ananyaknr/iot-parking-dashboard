@@ -11,7 +11,8 @@ from pathlib import Path
 import paho.mqtt.client as mqtt
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
-from model import TOPICS, Source, validate
+from model import TOPICS, Source
+from runtime import Ingestion, StorageWorker
 from webapp import create_app
 from waitress import create_server
 
@@ -26,7 +27,8 @@ def main():
     states = {name: Source(name) for name in MEASUREMENTS}
     received_utc = {name: None for name in MEASUREMENTS}
     state_lock = threading.Lock()
-    status = {"last_write": 0.0, "dropped": 0, "rejected": 0}
+    status = {"dropped": 0, "generation": 0}
+    ingestion = Ingestion(states)
     bucket = os.environ.get("INFLUX_BUCKET", "sensor_data")
     prefix = os.environ.get("MQTT_TOPIC_PREFIX", "parking").rstrip("/")
     wire_topics = {topic.replace("parking/", prefix + "/", 1): topic for topic in TOPICS}
@@ -34,6 +36,9 @@ def main():
     influx = InfluxDBClient(url=os.environ.get("INFLUX_URL", "http://influxdb:8086"),
                             token=os.environ["INFLUX_TOKEN"], org=org, timeout=4000)
     writer = influx.write_api(write_options=SYNCHRONOUS)
+    storage = StorageWorker(lambda batch: writer.write(bucket=bucket, org=org, record=batch))
+    storage_thread = threading.Thread(target=storage.run, args=(stop,), daemon=True)
+    storage_thread.start()
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2,
                          client_id=os.environ.get("MQTT_CLIENT_ID", "parking-backend"), clean_session=True)
     client.username_pw_set(os.environ["MQTT_USERNAME"], os.environ["MQTT_PASSWORD"])
@@ -49,17 +54,25 @@ def main():
             log.warning("MQTT connection refused: %s", reason_code)
 
     def on_disconnect(c, userdata, flags, reason_code, properties):
-        connected.clear()
+        with state_lock:
+            connected.clear()
+            status["generation"] += 1
+            for state in states.values():
+                state.reject(time.monotonic())
         log.warning("MQTT disconnected: %s", reason_code)
 
     def on_message(c, userdata, message):
         # Callback stays short. Reject retained telemetry: it must not revive a source.
+        if message.topic not in wire_topics:
+            return
         item = (wire_topics[message.topic], bytes(message.payload), bool(message.retain),
-                time.monotonic(), datetime.now(timezone.utc))
+                bool(message.dup), time.monotonic(), datetime.now(timezone.utc), status["generation"])
         try:
             messages.put_nowait(item)
         except queue.Full:
             status["dropped"] += 1
+            with state_lock:
+                states[TOPICS[item[0]]].reject(item[4])
             log.error("Receive queue full; message dropped")
 
     client.on_connect, client.on_disconnect, client.on_message = on_connect, on_disconnect, on_message
@@ -75,8 +88,12 @@ def main():
         return {"received_at_utc": datetime.now(timezone.utc).isoformat(),
                 "data_origin": os.environ.get("DATA_ORIGIN", "hardware"),
                 "mqtt_connected": connected.is_set(),
-                "storage_connected": now - status["last_write"] < 10,
-                "rejected_messages": status["rejected"], "dropped_messages": status["dropped"],
+                **storage.snapshot(),
+                "ingestion_connected": connected.is_set() and any(
+                    s["fresh"] and s["payload_valid"] for s in sources.values()),
+                "ingestion_queue_depth": messages.qsize(),
+                "rejected_messages": ingestion.rejected, "dropped_messages": status["dropped"],
+                "discarded_messages": ingestion.discarded,
                 "sources": sources}
 
     app = create_app(latest, influx.query_api(), bucket, org)
@@ -86,7 +103,6 @@ def main():
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stop.set())
     next_snapshot = 0.0
-    pending = []
 
     def point(source, fields, kind, stamp):
         p = (Point(MEASUREMENTS[source]).tag("source", source).tag("kind", kind)
@@ -103,49 +119,38 @@ def main():
             # Bound per-loop work so sustained input cannot starve freshness updates.
             for _ in range(100):
                 try:
-                    topic, payload, retained, received_mono, stamp = messages.get_nowait()
+                    topic, payload, retained, duplicate, received_mono, stamp, generation = messages.get_nowait()
                 except queue.Empty:
                     break
-                source = TOPICS[topic]
-                try:
-                    if retained:
-                        raise ValueError("retained telemetry rejected")
-                    source, message = validate(topic, payload)
-                    with state_lock:
-                        states[source].accept(message, received_mono)
+                with state_lock:
+                    if generation != status["generation"] or not connected.is_set():
+                        ingestion.discarded += 1
+                        continue
+                    rejected_before = ingestion.rejected
+                    source = ingestion.receive(topic, payload, retained, duplicate,
+                                               received_mono, time.monotonic())
+                    if source:
                         received_utc[source] = stamp.isoformat()
-                    pending.append(point(source, states[source].snapshot(received_mono), "telemetry", stamp))
-                except (ValueError, TypeError, UnicodeError) as exc:
-                    with state_lock:
-                        states[source].reject(received_mono)
-                    status["rejected"] += 1
-                    log.warning("Rejected %s payload: %s", source, exc)  # never log payloads/secrets
-                    pending.append(Point("parking_events").tag("source", source)
-                                   .field("rejected", True).field("reason", str(exc))
-                                   .time(stamp, WritePrecision.NS))
+                        storage.submit(point(source, states[source].snapshot(received_mono), "telemetry", stamp))
+                    elif ingestion.rejected > rejected_before:
+                        log.warning("Rejected %s telemetry (invalid or retained)", TOPICS[topic])
+                        storage.submit(Point("parking_events").tag("source", TOPICS[topic])
+                                       .field("rejected", True).field("reason", "invalid_or_retained")
+                                       .time(stamp, WritePrecision.NS))
             now = time.monotonic()
             if now >= next_snapshot:
                 stamp = datetime.now(timezone.utc)
-                for source, state in states.items():
-                    pending.append(point(source, state.snapshot(now), "status", stamp))
+                with state_lock:
+                    for source, state in states.items():
+                        storage.submit(point(source, state.snapshot(now), "status", stamp))
                 next_snapshot = now + 1
-            if pending:
-                try:
-                    writer.write(bucket=bucket, org=org, record=pending)
-                    status["last_write"] = time.monotonic()
-                    pending.clear()
-                except Exception as exc:
-                    log.warning("Influx write unavailable: %s", type(exc).__name__)
-                    # Bound RAM during outages; do not invent replacement measurements.
-                    if len(pending) > 2000:
-                        pending = pending[-2000:]
-                        log.error("Write backlog truncated to 2000 points")
-                    stop.wait(1)
             stop.wait(0.05)
     finally:
+        stop.set()
         client.disconnect()
         client.loop_stop()
         server.close()
+        storage_thread.join()
         writer.close()
         influx.close()
 
