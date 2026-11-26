@@ -11,7 +11,9 @@ import json
 from pathlib import Path
 import shutil
 import sqlite3
+import ssl
 import sys
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, build_opener, ProxyHandler
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,14 +38,23 @@ def main():
     def internet(url):
         try:
             with opener.open(url,timeout=6) as response:
-                return response.status < 500
+                return True
+        except HTTPError as error:
+            error.close()
+            return True  # An HTTP error still proves external HTTPS connectivity.
+        except URLError as error:
+            if isinstance(error.reason, ssl.SSLError):
+                raise  # A TLS validation problem is not proof of internet loss.
+            return False
+        except ssl.SSLError:
+            raise
         except OSError:
             return False
     connected = {'cloud_https':internet(client.config['url']+'/health'),
-                 'independent_https':internet('https://www.microsoft.com/')}
+                 'independent_https':internet('https://api.github.com/')}
     latest = api('/api/latest')
-    assert latest['data_origin'] == 'hardware' and latest['cloud']['enabled']
-    assert latest['mqtt_connected'] and latest['storage_connected']
+    assert latest['data_origin'] == 'hardware' and latest['cloud']['enabled'], 'Hardware cloud export required'
+    assert latest['mqtt_connected'] and latest['storage_connected'], 'Local broker/database must be connected'
     assert all(latest['sources'][source]['fresh'] and latest['sources'][source]['payload_valid']
                for source in ('uno','esp32')), 'Both actual hardware feeds must be fresh'
     history = api('/api/history?source=esp32&field=light_raw&minutes=5')
@@ -55,7 +66,7 @@ def main():
     hashes = [hashlib.sha256(line.encode()).hexdigest() for line in lines]
     files = [outbox,Path(str(outbox)+'-journal'),Path(str(outbox)+'-wal'),Path(str(outbox)+'-shm')]
     receipt = {'verified_at_utc':datetime.now(timezone.utc).isoformat(),'phase':args.phase,
-               'backend_process':json.loads((ROOT/'.runtime/processes.json').read_text())['backend'],
+               'backend_process':json.loads((ROOT/'.runtime/processes.json').read_text(encoding='utf-8-sig'))['backend'],
                'connectivity':connected,'cloud':latest['cloud'],'pending_sqlite_rows':len(lines),
                'pending_hashes':hashes,'outbox_file_bytes':{file.name:file.stat().st_size for file in files if file.exists()},
                'drive_free_bytes':shutil.disk_usage(ROOT).free,'local_history':'PASS',
@@ -74,7 +85,8 @@ def main():
             assert set(before['pending_hashes']).issubset(hashes), 'Committed rows did not survive restart'
             receipt['committed_rows_survived_restart'] = len(before['pending_hashes'])
     elif args.phase == 'baseline':
-        assert all(connected.values()) and not latest['cloud']['error'] and latest['cloud']['uploaded'] > 0
+        assert all(connected.values()), 'Online HTTPS baseline failed: '+json.dumps(connected)
+        assert not latest['cloud']['error'] and latest['cloud']['uploaded'] > 0, 'Cloud acknowledgement required'
     else:
         assert all(connected.values()) and not latest['cloud']['error']
         saved = json.loads((ROOT/'.runtime/cloud-outage-hardware-lines.json').read_text())
@@ -114,5 +126,7 @@ def main():
 if __name__ == '__main__':
     try:
         main()
-    except (AssertionError, OSError, ValueError, KeyError, TypeError, CloudError, sqlite3.Error):
+    except AssertionError as error:
+        raise SystemExit('Outage stage has not passed: '+str(error)) from None
+    except (OSError, ValueError, KeyError, TypeError, CloudError, sqlite3.Error):
         raise SystemExit('Outage stage has not passed; verify LAN/fresh hardware, internet state, backlog and prior stages. No secrets printed.') from None
