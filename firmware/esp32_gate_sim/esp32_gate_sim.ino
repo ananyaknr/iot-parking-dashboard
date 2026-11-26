@@ -1,6 +1,9 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <DHT.h>
+#include <ArduinoJson.h>
+#include <GateCommon.h>
+#include <atomic>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include "secrets.h"
@@ -19,93 +22,139 @@ constexpr uint32_t SENSOR_INTERVAL_MS = 2500;
 DHT dht(DHT_PIN, DHT22);
 WiFiClient wifiClient;
 PubSubClient mqtt(wifiClient);
-struct Message { bool uno; bool gate; uint32_t received; char payload[384]; };
-struct DisplayMessage { char text[48]; uint32_t received; };
+struct Message { bool uno; bool gate; bool ack; uint32_t received,generation; char payload[1024]; };
+struct DisplayMessage { char text[48]; uint32_t received,generation; bool usb; };
 QueueHandle_t displayQueue;
 char usbLine[48]; size_t usbLength=0; bool usbOverflow=false;
 QueueHandle_t publishQueue;
-volatile bool mqttOnline = false;
+std::atomic<bool> mqttOnline{false};
+std::atomic<uint32_t> mqttGeneration{0};
+char commandTopic[96]="";
 uint32_t lastSensorRead = 0;
-char unoBuffer[384];
-size_t unoLength = 0;
-bool overflow = false;
+gatev2::Frame<224> unoFrame;
+char activeBoot[33]="";
+bool sessionPending=false;
+uint32_t lastUnoReceived=0,frameStarted=0;
+char pendingId[9]="",pendingText[64]="";
+uint32_t pendingSince=0;
+bool pendingRetried=false;
 
-void enqueue(bool uno, const char *payload, bool gate=false) {
+void enqueue(bool uno, const char *payload, bool gate=false, bool ack=false) {
   // Drop offline data; never replay an old UNO message as a fresh arrival.
   if (!mqttOnline) return;
   Message item{};
-  item.uno = uno; item.gate = gate;
+  item.uno = uno; item.gate = gate; item.ack=ack;item.generation=mqttGeneration.load();
   item.received = millis();
   strlcpy(item.payload, payload, sizeof(item.payload));
   if (xQueueSend(publishQueue, &item, 0) != pdTRUE)
     Serial.println(F("[MQTT] queue full; telemetry dropped"));
 }
 
+void randomHex(char* target,size_t words) {
+  for(size_t i=0;i<words;++i) snprintf(target+i*8,9,"%08lx",(unsigned long)esp_random());
+}
+void receiveFrame(char* frame) {
+  if(!strcmp(frame,"HELLO2")) {
+    if(!sessionPending) {randomHex(activeBoot,4);sessionPending=true;pendingId[0]=0;}
+    Serial2.print("S2|");Serial2.println(activeBoot);return;
+  }
+  if(!strncmp(frame,"K2|",3)) {
+    char* fields[4];
+    if(gatev2::split(frame,fields,4)!=4 || !gatev2::hex(fields[1],8) || strcmp(fields[1],pendingId)) return;
+    if(strcmp(fields[2],"ok") && strcmp(fields[2],"duplicate") && strcmp(fields[2],"rejected")) return;
+    Serial.printf("LCD_ACK|%s|%s|%s\n",fields[1],fields[2],fields[3]);
+    char ack[160];snprintf(ack,sizeof(ack),"{\"schema_version\":2,\"command_id\":\"%s\",\"status\":\"%s\",\"origin\":\"synthetic\",\"physical_movement\":false}",fields[1],fields[2]);
+    enqueue(false,ack,false,true);pendingId[0]=0;return;
+  }
+  gatev2::Telemetry data;
+  if(!gatev2::telemetry(frame,data)) {Serial.println("UART_REJECTED");return;}
+  // ESP32 restarts can adopt the still-running UNO's epoch. A new HELLO gets a
+  // fresh random 128-bit epoch; reconnects do not turn counters into new IDs.
+  if(!activeBoot[0]) strcpy(activeBoot,data.boot);
+  if(strcmp(activeBoot,data.boot)) {Serial.println("UART_OLD_BOOT");return;}
+  sessionPending=false;lastUnoReceived=millis();
+  JsonDocument document;
+  document["node"]="uno";document["schema_version"]=2;document["mode"]="gate_sim";
+  document["control_mode"]=data.integrated?"integrated":"standalone";
+  document["boot_id"]=data.boot;document["uptime_ms"]=data.uptime;
+  if(data.u1<0) document["u1_distance_cm"]=nullptr;else document["u1_distance_cm"]=data.u1;
+  if(data.u2<0) document["u2_distance_cm"]=nullptr;else document["u2_distance_cm"]=data.u2;
+  document["u1_state"]=gatev2::zoneName(data.z1);document["u2_state"]=gatev2::zoneName(data.z2);
+  document["gate_sim_state"]=gatev2::stateName(data.state);document["servo_enabled"]=false;
+  document["arrival_count"]=data.arrivals;document["completed_count"]=data.completed;
+  document["vibration_raw"]=data.raw;document["vibration_transition_count"]=data.vibration;
+  document["vibration_semantics"]="sampled_transitions";
+  document["event_seq"]=data.sequence;document["last_event"]=data.event;
+  char id[64];
+  snprintf(id,sizeof(id),"v2:%s:a:%lu",data.boot,(unsigned long)data.arrivals);
+  if(data.arrivals) document["arrival_id"]=id;else document["arrival_id"]=nullptr;
+  char passage[64];snprintf(passage,sizeof(passage),"v2:%s:p:%lu",data.boot,(unsigned long)data.completed);
+  if(data.completed) document["passage_id"]=passage;else document["passage_id"]=nullptr;
+  char event[64];snprintf(event,sizeof(event),"v2:%s:e:%lu",data.boot,(unsigned long)data.sequence);
+  document["event_id"]=event;
+  char payload[1024];
+  if(measureJson(document)>=sizeof(payload)) {Serial.println("UART_JSON_TOO_LARGE");return;}
+  serializeJson(document,payload,sizeof(payload));Serial.println(payload);enqueue(true,payload,true);
+}
 void readUNO() {
-  while (Serial2.available()) {
-    char c = Serial2.read();
-    if (c == '\n') {
-      if (!overflow && unoLength > 1) {
-        unoBuffer[unoLength] = '\0';
-        if (unoBuffer[0] == '{' && unoBuffer[unoLength - 1] == '}') {
-          // Only gate simulation schema goes to isolated test topic.
-          const bool isGate = strstr(unoBuffer, "\"schema_version\":2") && strstr(unoBuffer, "\"mode\":\"gate_sim\"");
-          Serial.println(unoBuffer);
-          if (isGate) enqueue(true, unoBuffer, true);
-          else if (strstr(unoBuffer, "\"a1_distance_cm\":")) enqueue(true, unoBuffer);
-        } else if (strcmp(unoBuffer,"ACK|LCD|OK")==0 || strcmp(unoBuffer,"ACK|LCD|REJECTED")==0) {
-          Serial.println(unoBuffer);
-        }
-      }
-      unoLength = 0;
-      overflow = false;
-    } else if (c != '\r' && !overflow) {
-      if (unoLength < sizeof(unoBuffer) - 1) unoBuffer[unoLength++] = c;
-      else overflow = true;
-    }
+  if(unoFrame.size && uint32_t(millis()-frameStarted)>500) {unoFrame.size=0;unoFrame.bad=true;}
+  for(uint16_t budget=0;Serial2.available() && budget<512;++budget) {
+    if(!unoFrame.size && !unoFrame.bad) frameStarted=millis();
+    if(unoFrame.feed(char(Serial2.read()))) receiveFrame(unoFrame.data);
   }
 }
-
-// Bench-only display commands: no gate authorization or motion commands.
-bool validDisplay(const char *text) {
-  if (strncmp(text,"LCD|",4)) return false;
-  const char *p=text+4,*sep=strchr(p,'|');
-  if(!sep || sep==p || sep-p>16) return false;
-  for(;p<sep;++p) {
-    char c=*p;
-    if(!((c>='A'&&c<='Z')||(c>='a'&&c<='z')||(c>='0'&&c<='9')||c==' '||c=='-')) return false;
-  }
-  return !strcmp(sep+1,"car") || !strcmp(sep+1,"supercar") || !strcmp(sep+1,"unknown");
+// USB and rotating-nonce MQTT test topics accept synthetic display-only commands.
+// Production recognition delivery remains disabled pending teammate agreement.
+bool validDisplay(const char* text) {
+  if(strlen(text)>=48) return false;
+  char copy[48];strcpy(copy,text);char* fields[3];
+  return gatev2::split(copy,fields,3)==3 && !strcmp(fields[0],"LCD")
+    && gatev2::plate(fields[1]) && gatev2::vehicle(fields[2]);
 }
-void queueDisplay(const char *text) {
-  if(!displayQueue || !validDisplay(text)) return;
-  DisplayMessage m{};
-  strlcpy(m.text,text,sizeof(m.text));m.received=millis();
-  if(xQueueSend(displayQueue,&m,0)!=pdTRUE) Serial.println(F("[LCD] queue full"));
+void queueDisplay(const char* text,bool usb) {
+  if(!displayQueue || !validDisplay(text)) {Serial.println("LCD_REJECTED");return;}
+  DisplayMessage message{};strlcpy(message.text,text,sizeof(message.text));
+  message.received=millis();message.generation=mqttGeneration.load();message.usb=usb;
+  if(xQueueSend(displayQueue,&message,0)!=pdTRUE) Serial.println("LCD_QUEUE_FULL");
 }
 void readUSB() {
   while(Serial.available()) {
     char c=Serial.read();
     if(c=='\n') {
-      if(!usbOverflow && usbLength) {usbLine[usbLength]='\0';queueDisplay(usbLine);}
+      if(!usbOverflow && usbLength) {usbLine[usbLength]=0;queueDisplay(usbLine,true);}
       usbLength=0;usbOverflow=false;
     } else if(c!='\r' && !usbOverflow) {
-      if(usbLength<sizeof(usbLine)-1) usbLine[usbLength++]=c;else usbOverflow=true;
+      if(uint8_t(c)<32 || uint8_t(c)>126 || usbLength>=sizeof(usbLine)-1) usbOverflow=true;
+      else usbLine[usbLength++]=c;
     }
   }
 }
-void testDisplayCallback(char *topic,byte *payload,unsigned int length) {
-  if(strcmp(topic,"parking/test/gate/lcd") || length==0 || length>=48) return;
-  char text[48];
-  memcpy(text,payload,length);text[length]='\0';
-  if(strlen(text)!=length) return;
-  queueDisplay(text);
+void testDisplayCallback(char* topic,byte* payload,unsigned int length) {
+  if(strcmp(topic,commandTopic) || !length || length>=48) return;
+  char text[48];memcpy(text,payload,length);text[length]=0;
+  if(strlen(text)==length) queueDisplay(text,false);
 }
 void sendDisplay() {
-  DisplayMessage m;
-  if(displayQueue && xQueueReceive(displayQueue,&m,0)==pdTRUE && millis()-m.received<2000) {
-    Serial2.println(m.text);
-    Serial.println(F("[LCD] forwarded test command; wait for UNO ACK"));
+  uint32_t now=millis();
+  if(pendingId[0]) {
+    if(uint32_t(now-pendingSince)>=1500) {Serial.printf("LCD_ACK_TIMEOUT|%s\n",pendingId);pendingId[0]=0;}
+    else if(!pendingRetried && uint32_t(now-pendingSince)>=750 && uint32_t(now-lastUnoReceived)<100) {
+      Serial2.println(pendingText);pendingRetried=true;
+    }
+    return;
+  }
+  // Drain one small frame just after a UNO report, while SoftwareSerial is receiving.
+  if(uint32_t(now-lastUnoReceived)>=100) return;
+  DisplayMessage message;
+  if(displayQueue && xQueueReceive(displayQueue,&message,0)==pdTRUE) {
+    if(uint32_t(now-message.received)>=2000 || (!message.usb &&
+       (!mqttOnline || message.generation!=mqttGeneration.load()))) {Serial.println("LCD_EXPIRED");return;}
+    char copy[48];strcpy(copy,message.text);char* fields[3];
+    if(gatev2::split(copy,fields,3)!=3) return;
+    randomHex(pendingId,1);
+    snprintf(pendingText,sizeof(pendingText),"T2|%s|%s|%s",pendingId,fields[1],fields[2]);
+    pendingSince=now;pendingRetried=false;Serial2.println(pendingText);
+    Serial.printf("LCD_SENT_TEST|%s\n",pendingId);
   }
 }
 
@@ -143,7 +192,7 @@ void networkTask(void *) {
   bool wifiStarted = false;
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
   mqtt.setCallback(testDisplayCallback);
-  if (!mqtt.setBufferSize(768)) {
+  if (!mqtt.setBufferSize(1536)) {
     Serial.println(F("[MQTT] buffer allocation failed"));
     vTaskDelete(nullptr);
   }
@@ -196,8 +245,15 @@ void networkTask(void *) {
         Serial.println(WiFi.localIP());
         if (mqtt.connect(clientId, MQTT_USERNAME, MQTT_PASSWORD)) {
           xQueueReset(publishQueue); // erase anything queued before this connection
+          ++mqttGeneration;
+          char nonce[17];randomHex(nonce,2);
+          snprintf(commandTopic,sizeof(commandTopic),"parking/test/gate/lcd/%s",nonce);
+          // Subscribe before advertising the fresh random topic. An old retained
+          // command belongs to an earlier connection topic and cannot be replayed.
+          if(!mqtt.subscribe(commandTopic,0)) Serial.println(F("[LCD] test subscription failed"));
+          char ready[180];snprintf(ready,sizeof(ready),"{\"schema_version\":2,\"test_only\":true,\"topic\":\"%s\"}",commandTopic);
+          mqtt.publish("parking/test/gate/lcd/ready",ready,false);
           mqttOnline = true;
-          if(!mqtt.subscribe("parking/test/gate/lcd",0)) Serial.println(F("[LCD] test subscription failed"));
           Serial.println(F("[MQTT] connected"));
         } else {
           Serial.print(F("[MQTT] connect failed, state=")); Serial.println(mqtt.state());
@@ -208,8 +264,8 @@ void networkTask(void *) {
       Message item;
       if (mqttOnline && xQueueReceive(publishQueue, &item, 0) == pdTRUE) {
         // A short bounded hand-off, not an offline/reconnection replay buffer.
-        if (millis() - item.received <= 1000) {
-          bool ok = mqtt.publish(item.gate ? "parking/test/gate/telemetry" : item.uno ? "parking/node/telemetry" : "parking/gateway/telemetry",
+        if (item.generation==mqttGeneration.load() && millis() - item.received <= 1000) {
+          bool ok = mqtt.publish(item.ack ? "parking/test/gate/lcd/ack" : item.gate ? "parking/test/gate/telemetry" : item.uno ? "parking/node/telemetry" : "parking/gateway/telemetry",
                                  item.payload, false);
           if (!ok) {
             Serial.println(F("[MQTT] publish failed; message dropped"));
@@ -225,14 +281,14 @@ void networkTask(void *) {
 void setup() {
   Serial.begin(115200);
   Serial2.setRxBufferSize(1024);
-  Serial2.begin(9600, SERIAL_8N1, UART_RX, UART_TX);
+  Serial2.begin(19200, SERIAL_8N1, UART_RX, UART_TX);
   dht.begin();
   analogReadResolution(12);
   analogSetAttenuation(ADC_11db);
   pinMode(LDR_PIN, INPUT); pinMode(MQ2_PIN, INPUT);
   publishQueue = xQueueCreate(16, sizeof(Message));
   displayQueue = xQueueCreate(4,sizeof(DisplayMessage));
-  if (!publishQueue || xTaskCreate(networkTask, "network", 8192, nullptr, 1, nullptr) != pdPASS) {
+  if (!publishQueue || !displayQueue || xTaskCreate(networkTask, "network", 8192, nullptr, 1, nullptr) != pdPASS) {
     Serial.println(F("[MQTT] task setup failed; USB telemetry remains active"));
   }
 }
