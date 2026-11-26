@@ -11,9 +11,11 @@ reported by the owner before this run; they are not independently verified here.
 | Shared C++ firmware core | PASS with g++ -std=c++11 -Wall -Wextra -Werror; safety/state/parser assertions |
 | Python regression | PASS: 51 tests, including original regressions and gate/recognition tests |
 | Actual Chrome fixture dashboard | PASS: six charts, gaps/timestamps, environment, manual cloud/no polling, failure/local recovery, mobile |
+| Actual native dashboards in Chrome | PASS on :5000 and :5001: six charts, authenticated API, broker/database connected, missing sensor data visibly unknown; no physical gate acceptance |
 | Real test cloud | PASS at 10:10:23 UTC: parking_sensor_test, synthetic gate fixture; duplicate writes → one logical point; distance/counter history |
 | Upload, approved by owner | UNO COM8 PASS after releasing Arduino serial-monitor helper; ESP32 COM9 BLOCKED by repeated 0xF8 bootloader corruption, including manual BOOT and read-only identity check |
 | UNO USB diagnostics | PASS: VIB_DIAG raw/min/max = 1/1/1, zero transitions at rest; does not establish polarity |
+| UNO I2C startup after reconnect | PASS: I2C_ADDRESS 0x27 and explicit SERVO DISABLED startup banner; LCD text rendering remains visually unverified in this run |
 | Real native gate pipeline | PASS: private MQTT/Influx history, servo/schema rejection, legacy separation, environment, retained/restart, original event timestamps, counters, database/broker recovery |
 | Actual reverse UART/LCD | BLOCKED pending successful upload and visual check |
 | Actual gate cycle/vibration polarity | BLOCKED pending successful upload and grouped physical test |
@@ -46,7 +48,15 @@ preceding 24 hours) reported 343,752 successful write bytes, 24 queries, 11,981
 response bytes and rounded/reported storage zero; it is not a new gate usage meter.
 
 The separate hardware demo starts on loopback :5001 with scoped local sensor_test
-credentials. Database connection passed; broker connection is blocked because
-the PC currently has Wi-Fi 10.203.218.185 while configured demo LAN is
-172.20.10.12. No network or production credentials were changed. ESP32 USB
-reconnection and original hotspot restoration were requested from the owner.
+credentials. Database and cloud configuration checks passed. The PC initially had
+Wi-Fi 10.203.218.185; the owner restored the original 172.20.10.12 hotspot and
+the actual broker connection then passed. Both boards were reconnected by USB.
+ESP32 upload still failed with the same 0xF8 corruption after cable reconnect;
+no ESP32 firmware was written. Reverse UART and fresh gate/environment telemetry
+are blocked, not accepted. No network or production credentials were changed.
+The production backend was gracefully reloaded using the native process ledger;
+broker/database were preserved and production gate routing remains off.
+Reproduce the actual native browser check with `node scripts/verify-gate-dashboard.cjs`
+while both dashboards are running. This check does not certify fresh sensor or
+real cloud chart data. The prior :5000 deployment/history remains available;
+fresh telemetry is not available in either dashboard until ESP32 is recovered.
