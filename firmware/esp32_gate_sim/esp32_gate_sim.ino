@@ -7,6 +7,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include "secrets.h"
+#include "MqttRecovery.h"
 // Full gate JSON can be decoded while the environmental ADC loop drains UART.
 // Reserve room for those nested frames and the MQTT hand-off on the ESP32.
 SET_LOOP_TASK_STACK_SIZE(16384);
@@ -198,6 +199,7 @@ void networkTask(void *) {
   // Only this task touches MQTT; slow TCP/MQTT connects cannot block UART reception.
   uint32_t lastWifiAttempt = 0, lastMqttAttempt = 0;
   bool wifiStarted = false;
+  MqttRecovery recovery;
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
   wifiClient.setConnectionTimeout(1000);
   mqtt.setCallback(testDisplayCallback);
@@ -252,7 +254,10 @@ void networkTask(void *) {
         lastMqttAttempt = now;
         Serial.print(F("[WiFi] connected, local IP: "));
         Serial.println(WiFi.localIP());
+        // A failed connect may leave a half-open transport. Start a fresh socket.
+        wifiClient.stop();
         if (mqtt.connect(clientId, MQTT_USERNAME, MQTT_PASSWORD)) {
+          recovery.connected();
           xQueueReset(publishQueue); // erase anything queued before this connection
           ++mqttGeneration;
           char nonce[17];randomHex(nonce,2);
@@ -267,6 +272,16 @@ void networkTask(void *) {
           Serial.println(F("[MQTT] connected"));
         } else {
           Serial.print(F("[MQTT] connect failed, state=")); Serial.println(mqtt.state());
+          if(recovery.failed(mqtt.state())) {
+            // Association alone is not proof of a usable TCP path. Recover it
+            // after six failed transport attempts rather than retrying forever.
+            // UART sampling continues in loop(); queued commands still expire.
+            Serial.println(F("[MQTT] transport recovery: reassociating WiFi"));
+            wifiClient.stop();
+            WiFi.disconnect(false, false);
+            wifiStarted=false;
+            lastMqttAttempt=0;
+          }
         }
       }
     } else {

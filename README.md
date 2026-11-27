@@ -2,6 +2,11 @@
 
 ## Sensor and gate integration handoff
 
+For the gateway's intermittent MQTT transport failure, see the
+[diagnosis, bounded reconnect repair and rollback](docs/esp32-mqtt-recovery.md).
+The dashboard distinguishes missing telemetry from an ultrasonic no-echo;
+neither is shown as fresh valid clearance.
+
 The combined dashboard is running at **http://127.0.0.1:8081/#/dashboard**.
 See [migration startup, frontend routes and remaining API work](docs/dashboard-migration-handoff.md).
 It combines `feature/dashboard-webapp` at `046e1da` with PR #5's G3 backend,
