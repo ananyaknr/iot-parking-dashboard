@@ -1,5 +1,13 @@
 # Minimum joint integration — PR #5
 
+Current readiness: Windows checkout updated to **7638868**, separate .venv and
+approved API/OCR dependencies installed, all three OCR models checksum-verified.
+The API is running on http://127.0.0.1:8001 with isolated local SQLite storage;
+actual PR #5 OpenAPI/storage/simulation preflight passed. The bridge is not
+running. Owner deferred shared camera Wi-Fi and left; all three joint tests
+remain pending. Earlier Mac-only/uncommitted-update blockers below are historical
+and resolved by this Windows setup. No gate tests run unattended.
+
 Continues e88ca05. Inspected teammate main **1058ed1b8c6741266c6430b090f3b2ec7014a74f**:
 README, sensor-dashboard-integration.md, app/main.py, parking_api.py,
 parking_store.py, parking_recognition.py and the referenced docs/openapi.json.

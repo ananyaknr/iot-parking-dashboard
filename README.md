@@ -4,9 +4,10 @@
 
 The minimum joint HTTP bridge is now available: see
 [same-laptop run instructions and API boundaries](docs/parking-joint-minimum.md).
-Its three actual-camera joint tests are currently **blocked**: the isolated
-parking API is Mac-loopback-only, both supplied cameras are unreachable, and the
-Mac exit OCR update is uncommitted. Earlier live gate tests below remain valid;
+The Windows API is now running on localhost:8001 at teammate commit 7638868;
+schema/isolation preflight and three OCR model checksums passed. Its three
+actual-camera joint tests remain **blocked** pending shared camera Wi-Fi and
+owner supervision. Earlier live gate tests below remain valid;
 they do not establish joint camera/session acceptance.
 
 Current branch: **`feature/parking-full-integration`**, based on merged
