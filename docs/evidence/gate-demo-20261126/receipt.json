@@ -1,0 +1,496 @@
+{
+  "verified_at_utc": "2026-11-26T15:07:17.698652+00:00",
+  "boot_id": "b3d3741f9f3849a396cd1012ef925eac",
+  "mode": "servo_disabled_standalone",
+  "cycle_timeout_seconds": 120,
+  "integrated_authorization_timeout_seconds": 20,
+  "gate": {
+    "age_seconds": 0.9070000000001528,
+    "arrival_count": 1,
+    "arrival_count_valid": true,
+    "arrival_id": "v2:b3d3741f9f3849a396cd1012ef925eac:a:1",
+    "boot_id": "b3d3741f9f3849a396cd1012ef925eac",
+    "completed_count": 1,
+    "completed_count_valid": true,
+    "control_mode": "standalone",
+    "event_id": "v2:b3d3741f9f3849a396cd1012ef925eac:e:8",
+    "event_seq": 8,
+    "fresh": true,
+    "gate_sim_state": "closed",
+    "last_event": "passage_completed",
+    "last_received_utc": "2026-11-26T15:07:16.797672+00:00",
+    "mode": "gate_sim",
+    "passage_id": "v2:b3d3741f9f3849a396cd1012ef925eac:p:1",
+    "payload_valid": true,
+    "received_recently": true,
+    "schema_version": 2,
+    "servo_enabled": false,
+    "simulation": true,
+    "u1_distance_cm": 53.5,
+    "u1_distance_cm_valid": true,
+    "u1_state": "clear",
+    "u2_distance_cm": 37.1,
+    "u2_distance_cm_valid": true,
+    "u2_state": "clear",
+    "vibration_polarity": "unverified",
+    "vibration_raw": 1,
+    "vibration_raw_valid": true,
+    "vibration_semantics": "sampled_transitions",
+    "vibration_transition_count": 2,
+    "vibration_transition_count_valid": true
+  },
+  "environment": {
+    "age_seconds": 1.0469999999995707,
+    "availability_state": 1,
+    "fresh": true,
+    "gas_raw": 553,
+    "gas_raw_valid": true,
+    "gas_status": "unconditioned_or_uncalibrated",
+    "humidity_pct": 63.6,
+    "humidity_pct_valid": true,
+    "last_received_utc": "2026-11-26T15:07:16.664164+00:00",
+    "light_raw": 1071,
+    "light_raw_valid": true,
+    "payload_valid": true,
+    "received_recently": true,
+    "temperature_c": 23.2,
+    "temperature_c_valid": true
+  },
+  "local_history": {
+    "gate.u1_distance_cm": {
+      "numeric_points": 586,
+      "latest": {
+        "time": "2026-11-26T15:07:17+00:00",
+        "value": 53.5
+      }
+    },
+    "gate.u2_distance_cm": {
+      "numeric_points": 586,
+      "latest": {
+        "time": "2026-11-26T15:07:17+00:00",
+        "value": 37.5
+      }
+    },
+    "gate.arrival_count": {
+      "numeric_points": 586,
+      "latest": {
+        "time": "2026-11-26T15:07:17+00:00",
+        "value": 1.0
+      }
+    },
+    "gate.completed_count": {
+      "numeric_points": 587,
+      "latest": {
+        "time": "2026-11-26T15:07:18+00:00",
+        "value": 1.0
+      }
+    },
+    "gate.vibration_transition_count": {
+      "numeric_points": 587,
+      "latest": {
+        "time": "2026-11-26T15:07:18+00:00",
+        "value": 2.0
+      }
+    },
+    "esp32.temperature_c": {
+      "numeric_points": 587,
+      "latest": {
+        "time": "2026-11-26T15:07:18+00:00",
+        "value": 23.2
+      }
+    },
+    "esp32.humidity_pct": {
+      "numeric_points": 587,
+      "latest": {
+        "time": "2026-11-26T15:07:18+00:00",
+        "value": 63.6
+      }
+    },
+    "esp32.light_raw": {
+      "numeric_points": 587,
+      "latest": {
+        "time": "2026-11-26T15:07:18+00:00",
+        "value": 1071.0
+      }
+    },
+    "esp32.gas_raw": {
+      "numeric_points": 586,
+      "latest": {
+        "time": "2026-11-26T15:07:18+00:00",
+        "value": 553.0
+      }
+    }
+  },
+  "cloud_gate_completed": [
+    {
+      "time": 1795705634789870000,
+      "actuation": "disabled",
+      "arrival_count": 1,
+      "arrival_count_valid": true,
+      "boot_id": "b3d3741f9f3849a396cd1012ef925eac",
+      "completed_count": 1,
+      "completed_count_valid": true,
+      "control_mode": "standalone",
+      "data_origin": "hardware_gate_sim",
+      "event_id": "v2:b3d3741f9f3849a396cd1012ef925eac:e:8",
+      "event_seq": 8,
+      "gate_sim_state": "closed",
+      "last_event": "passage_completed",
+      "sample_present": 1,
+      "schema_version": "2",
+      "servo_enabled": false,
+      "simulation": true,
+      "source": "gate",
+      "u1_distance_cm": 53.4,
+      "u1_distance_cm_valid": true,
+      "u1_state": "clear",
+      "u2_distance_cm": 37.1,
+      "u2_distance_cm_valid": true,
+      "u2_state": "clear",
+      "uptime_ms": 190214,
+      "vibration_raw": 1,
+      "vibration_raw_valid": true,
+      "vibration_transition_count": 2,
+      "vibration_transition_count_valid": true
+    },
+    {
+      "time": 1795705633795032000,
+      "actuation": "disabled",
+      "arrival_count": 1,
+      "arrival_count_valid": true,
+      "boot_id": "b3d3741f9f3849a396cd1012ef925eac",
+      "completed_count": 1,
+      "completed_count_valid": true,
+      "control_mode": "standalone",
+      "data_origin": "hardware_gate_sim",
+      "event_id": "v2:b3d3741f9f3849a396cd1012ef925eac:e:8",
+      "event_seq": 8,
+      "gate_sim_state": "closed",
+      "last_event": "passage_completed",
+      "sample_present": 1,
+      "schema_version": "2",
+      "servo_enabled": false,
+      "simulation": true,
+      "source": "gate",
+      "u1_distance_cm": 53.5,
+      "u1_distance_cm_valid": true,
+      "u1_state": "clear",
+      "u2_distance_cm": 34.1,
+      "u2_distance_cm_valid": true,
+      "u2_state": "clear",
+      "uptime_ms": 189213,
+      "vibration_raw": 1,
+      "vibration_raw_valid": true,
+      "vibration_transition_count": 2,
+      "vibration_transition_count_valid": true
+    },
+    {
+      "time": 1795705632819766000,
+      "actuation": "disabled",
+      "arrival_count": 1,
+      "arrival_count_valid": true,
+      "boot_id": "b3d3741f9f3849a396cd1012ef925eac",
+      "completed_count": 1,
+      "completed_count_valid": true,
+      "control_mode": "standalone",
+      "data_origin": "hardware_gate_sim",
+      "event_id": "v2:b3d3741f9f3849a396cd1012ef925eac:e:8",
+      "event_seq": 8,
+      "gate_sim_state": "closed",
+      "last_event": "passage_completed",
+      "sample_present": 1,
+      "schema_version": "2",
+      "servo_enabled": false,
+      "simulation": true,
+      "source": "gate",
+      "u1_distance_cm": 53.5,
+      "u1_distance_cm_valid": true,
+      "u1_state": "clear",
+      "u2_distance_cm": 34.1,
+      "u2_distance_cm_valid": true,
+      "u2_state": "clear",
+      "uptime_ms": 188214,
+      "vibration_raw": 1,
+      "vibration_raw_valid": true,
+      "vibration_transition_count": 2,
+      "vibration_transition_count_valid": true
+    }
+  ],
+  "cloud_environment": [
+    {
+      "time": 1795705634162836000,
+      "data_origin": "hardware_gate_sim",
+      "gas_raw": 553,
+      "gas_raw_valid": true,
+      "gas_status": "unconditioned_or_uncalibrated",
+      "humidity_pct": 63.5,
+      "humidity_pct_valid": true,
+      "light_raw": 1029,
+      "light_raw_valid": true,
+      "sample_present": 1,
+      "source": "esp32",
+      "temperature_c": 23.3,
+      "temperature_c_valid": true
+    }
+  ],
+  "events": [
+    {
+      "arrival_count": 1,
+      "arrival_id": "v2:b3d3741f9f3849a396cd1012ef925eac:a:1",
+      "boot_id": "b3d3741f9f3849a396cd1012ef925eac",
+      "completed_count": 1,
+      "event_id": "v2:b3d3741f9f3849a396cd1012ef925eac:e:8",
+      "event_seq": 8,
+      "last_event": "passage_completed",
+      "passage_id": "v2:b3d3741f9f3849a396cd1012ef925eac:p:1",
+      "received_at_utc": "2026-11-26T15:06:15.797676+00:00",
+      "schema_version": 2,
+      "servo_enabled": false,
+      "simulation": true
+    },
+    {
+      "arrival_count": 1,
+      "arrival_id": "v2:b3d3741f9f3849a396cd1012ef925eac:a:1",
+      "boot_id": "b3d3741f9f3849a396cd1012ef925eac",
+      "completed_count": 0,
+      "event_id": "v2:b3d3741f9f3849a396cd1012ef925eac:e:7",
+      "event_seq": 7,
+      "last_event": "clearance_confirmed",
+      "passage_id": null,
+      "received_at_utc": "2026-11-26T15:06:15.423768+00:00",
+      "schema_version": 2,
+      "servo_enabled": false,
+      "simulation": true
+    },
+    {
+      "arrival_count": 1,
+      "arrival_id": "v2:b3d3741f9f3849a396cd1012ef925eac:a:1",
+      "boot_id": "b3d3741f9f3849a396cd1012ef925eac",
+      "completed_count": 0,
+      "event_id": "v2:b3d3741f9f3849a396cd1012ef925eac:e:6",
+      "event_seq": 6,
+      "last_event": "passage_detected",
+      "passage_id": null,
+      "received_at_utc": "2026-11-26T15:06:08.622944+00:00",
+      "schema_version": 2,
+      "servo_enabled": false,
+      "simulation": true
+    },
+    {
+      "arrival_count": 1,
+      "arrival_id": "v2:b3d3741f9f3849a396cd1012ef925eac:a:1",
+      "boot_id": "b3d3741f9f3849a396cd1012ef925eac",
+      "completed_count": 0,
+      "event_id": "v2:b3d3741f9f3849a396cd1012ef925eac:e:5",
+      "event_seq": 5,
+      "last_event": "arrival",
+      "passage_id": null,
+      "received_at_utc": "2026-11-26T15:05:50.987037+00:00",
+      "schema_version": 2,
+      "servo_enabled": false,
+      "simulation": true
+    },
+    {
+      "arrival_count": 0,
+      "arrival_id": null,
+      "boot_id": "b3d3741f9f3849a396cd1012ef925eac",
+      "completed_count": 0,
+      "event_id": "v2:b3d3741f9f3849a396cd1012ef925eac:e:4",
+      "event_seq": 4,
+      "last_event": "ready",
+      "passage_id": null,
+      "received_at_utc": "2026-11-26T15:05:34.798867+00:00",
+      "schema_version": 2,
+      "servo_enabled": false,
+      "simulation": true
+    },
+    {
+      "arrival_count": 0,
+      "arrival_id": null,
+      "boot_id": "b3d3741f9f3849a396cd1012ef925eac",
+      "completed_count": 0,
+      "event_id": "v2:b3d3741f9f3849a396cd1012ef925eac:e:3",
+      "event_seq": 3,
+      "last_event": "supervised_reset",
+      "passage_id": null,
+      "received_at_utc": "2026-11-26T15:05:34.001598+00:00",
+      "schema_version": 2,
+      "servo_enabled": false,
+      "simulation": true
+    },
+    {
+      "arrival_count": 0,
+      "arrival_id": null,
+      "boot_id": "b3d3741f9f3849a396cd1012ef925eac",
+      "completed_count": 0,
+      "event_id": "v2:b3d3741f9f3849a396cd1012ef925eac:e:2",
+      "event_seq": 2,
+      "last_event": "unexpected_passage",
+      "passage_id": null,
+      "received_at_utc": "2026-11-26T15:05:00.574266+00:00",
+      "schema_version": 2,
+      "servo_enabled": false,
+      "simulation": true
+    },
+    {
+      "arrival_count": 0,
+      "arrival_id": null,
+      "boot_id": "b3d3741f9f3849a396cd1012ef925eac",
+      "completed_count": 0,
+      "event_id": "v2:b3d3741f9f3849a396cd1012ef925eac:e:1",
+      "event_seq": 1,
+      "last_event": "ready",
+      "passage_id": null,
+      "received_at_utc": "2026-11-26T15:04:56.409960+00:00",
+      "schema_version": 2,
+      "servo_enabled": false,
+      "simulation": true
+    },
+    {
+      "arrival_count": 0,
+      "arrival_id": null,
+      "boot_id": "b3d3741f9f3849a396cd1012ef925eac",
+      "completed_count": 0,
+      "event_id": "v2:b3d3741f9f3849a396cd1012ef925eac:e:0",
+      "event_seq": 0,
+      "last_event": "boot",
+      "passage_id": null,
+      "received_at_utc": "2026-11-26T15:04:06.275148+00:00",
+      "schema_version": 2,
+      "servo_enabled": false,
+      "simulation": true
+    }
+  ],
+  "browser": {
+    "verified_at_utc": "2026-11-26T15:08:07.090Z",
+    "boot_id": "b3d3741f9f3849a396cd1012ef925eac",
+    "gate_state": "Closed \u00b7 simulation",
+    "arrivals": 1,
+    "completed": 1,
+    "vibration_transitions": 2,
+    "servo_enabled": false,
+    "local": {
+      "numeric_points": [
+        [
+          312,
+          320
+        ],
+        [
+          440,
+          440
+        ],
+        [
+          440
+        ],
+        [
+          440
+        ],
+        [
+          440,
+          440
+        ],
+        [
+          440
+        ]
+      ],
+      "maxima": [
+        [
+          63.06666666666666,
+          48.833333333333336
+        ],
+        [
+          24.7,
+          63.70000000000001
+        ],
+        [
+          3214.6666666666665
+        ],
+        [
+          613
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2
+        ]
+      ],
+      "status": "Actual stored readings \u00b7 Gaps represent unavailable measurements"
+    },
+    "cloud": {
+      "numeric_points": [
+        [
+          309,
+          317
+        ],
+        [
+          439,
+          439
+        ],
+        [
+          439
+        ],
+        [
+          439
+        ],
+        [
+          440,
+          440
+        ],
+        [
+          440
+        ]
+      ],
+      "maxima": [
+        [
+          63.06666666666666,
+          48.833333333333336
+        ],
+        [
+          24.7,
+          63.7
+        ],
+        [
+          3900
+        ],
+        [
+          613
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2
+        ]
+      ],
+      "status": "Cloud archive \u00b7 Aggregated telemetry; gaps and low coverage shown as unknown"
+    },
+    "javascript_errors": []
+  },
+  "owner_visual_confirmation": {
+    "CAR": true,
+    "SUPERCAR": true
+  },
+  "vibration_diagnostics": {
+    "rest": [
+      1,
+      1,
+      1,
+      0
+    ],
+    "after_tapping": [
+      1,
+      0,
+      1,
+      2
+    ]
+  },
+  "limits": [
+    "No physical servo actuation",
+    "Camera/team integration deferred",
+    "Vibration count is sampled transitions, not calibrated taps",
+    "Original 20-second physical attempt timed out; successful cycle used 120-second standalone window"
+  ]
+}

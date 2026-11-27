@@ -16,10 +16,12 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 
 from model import RANGES
+from gate_model import validate_gate
 
 ROOT = Path(__file__).resolve().parents[1]
 LOG = logging.getLogger("parking.cloud")
 MEASUREMENTS = {"uno": "parking_node", "esp32": "parking_gateway"}
+CLOUD_MEASUREMENTS = dict(MEASUREMENTS,gate='parking_gate_v2')
 PRODUCTION = "parking_sensor_data"
 TEST = "parking_sensor_test"
 RETENTION_SECONDS = 30 * 86400
@@ -128,7 +130,7 @@ class CloudClient:
                      "write_token", body)
 
     def history(self, source, field, minutes, *, stop=None):
-        if source not in MEASUREMENTS or field not in RANGES[source] or not 1 <= minutes <= 43200:
+        if source not in CLOUD_MEASUREMENTS or field not in RANGES[source] or not 1 <= minutes <= 43200:
             raise ValueError("Unsupported cloud history request")
         stop = stop or datetime.now(timezone.utc)
         end = int(stop.timestamp())
@@ -136,8 +138,9 @@ class CloudClient:
         every = max(1, math.ceil(minutes * 60 / 600))
         # Identifiers are static/allowlisted. Use a bounded aggregation query;
         # absence of telemetry is not equivalent to a zero measurement.
-        statement = (f'SELECT mean("{field}") AS value, count("{field}") AS valid_samples, '
-                     f'count("sample_present") AS samples FROM "{MEASUREMENTS[source]}" '
+        aggregate = 'last' if source=='gate' and field not in ('u1_distance_cm','u2_distance_cm') else 'mean'
+        statement = (f'SELECT {aggregate}("{field}") AS value, count("{field}") AS valid_samples, '
+                     f'count("sample_present") AS samples FROM "{CLOUD_MEASUREMENTS[source]}" '
                      f'WHERE time >= {start}s AND time < {end}s '
                      f'GROUP BY time({every}s) fill(none)')
         try:
@@ -157,7 +160,7 @@ class CloudClient:
                         count = record.get("samples") or 0
                         valid = record.get("valid_samples") or 0
                         overlap = max(0, min(timestamp + every, end) - max(timestamp, start))
-                        cadence = 1 if source == "uno" else 2.5
+                        cadence = 1 if source in ("uno",'gate') else 2.5
                         # Require reasonable coverage and no explicitly missing values.
                         # Aggregates cannot prove continuity within a coarse window.
                         minimum = max(1, math.floor(0.8 * overlap / cadence))
@@ -173,18 +176,27 @@ class CloudClient:
             raise CloudError("invalid_query_response") from None
 
 
-def telemetry_line(source, message, stamp):
+def telemetry_line(source, message, stamp, *, data_origin='hardware'):
     """Encode only sensor fields; fixed measurement, tag set and timestamp."""
-    if source not in MEASUREMENTS:
+    if source not in CLOUD_MEASUREMENTS:
         return None
+    if source=='gate':
+        if data_origin not in ('hardware_gate_sim','synthetic'):return None
+        validate_gate(message)
     fields = ["sample_present=1i"]
     for name in RANGES[source]:
         value = message.get(name)
         fields.append(f"{name}_valid={'true' if value is not None else 'false'}")
         if value is not None:
-            fields.append(f"{name}={int(value)}i" if name.endswith("_raw")
+            fields.append(f"{name}={int(value)}i" if name.endswith("_raw") or (source=='gate' and not name.endswith('_cm'))
                           else f"{name}={float(value)!r}")
-    if source == "uno":
+    if source == 'gate':
+        for name in ('event_seq','uptime_ms'):
+            fields.append(f'{name}={message[name]}i')
+        fields.extend(['servo_enabled=false','simulation=true'])
+        for name in ('u1_state','u2_state','gate_sim_state','last_event','control_mode','event_id'):
+            fields.append(name+'="'+message[name]+'"')
+    elif source == "uno":
         for slot in ("a1", "m1"):
             name = slot + "_occupied"
             value = message.get(name)
@@ -203,7 +215,9 @@ def telemetry_line(source, message, stamp):
     # datetime has microsecond precision. Avoid float rounding of epoch ns.
     delta = stamp - datetime(1970, 1, 1, tzinfo=timezone.utc)
     ns = (delta.days * 86400 + delta.seconds) * 1_000_000_000 + delta.microseconds * 1000
-    return f"{MEASUREMENTS[source]},source={source},data_origin=hardware {','.join(fields)} {ns}"
+    origin = data_origin if data_origin in ('synthetic','hardware_gate_sim') else 'hardware'
+    extra = ',schema_version=2,actuation=disabled,boot_id='+message['boot_id'] if source=='gate' else ''
+    return f"{CLOUD_MEASUREMENTS[source]},source={source},data_origin={origin}{extra} {','.join(fields)} {ns}"
 
 
 class Outbox:
@@ -269,8 +283,9 @@ class Outbox:
 
 class CloudSync:
     """Bounded nonblocking handoff -> durable outbox -> independent HTTPS worker."""
-    def __init__(self, client, outbox):
+    def __init__(self, client, outbox, *, data_origin='hardware'):
         self.client, self.outbox = client, outbox
+        self.data_origin=data_origin
         self.stage = queue.Queue(maxsize=1000)
         self.lock = threading.Lock()
         self.dropped = 0
@@ -289,7 +304,7 @@ class CloudSync:
             thread.start()
 
     def submit(self, source, message, stamp):
-        line = telemetry_line(source, message, stamp)
+        line = telemetry_line(source, message, stamp,data_origin=self.data_origin)
         if line is None:
             return
         try:
@@ -403,17 +418,32 @@ class CloudSync:
             self.outbox.close()
 
 
-def start_optional_cloud(origin, prefix, local_bucket):
+def start_optional_cloud(origin, prefix, local_bucket, *, gate_production_approved=False):
     """Never load production credentials from a synthetic backend."""
-    if (origin, prefix, local_bucket) != ("hardware", "parking", "sensor_data"):
+    legacy=(origin,prefix,local_bucket)==('hardware','parking','sensor_data')
+    gate=gate_production_approved and (origin,prefix,local_bucket)==('hardware_gate_sim','parking','sensor_data')
+    if not (legacy or gate):
         return None, None
     path = ROOT / ".secrets" / "cloud.json"
     if not path.exists():
         return None, None
     try:
-        service = CloudSync(CloudClient(load_config(path)), Outbox(ROOT / ".runtime" / "cloud-outbox.sqlite3"))
+        service = CloudSync(CloudClient(load_config(path)), Outbox(ROOT / ".runtime" / "cloud-outbox.sqlite3"),data_origin=origin)
         service.start()
         return service, None
     except (OSError, ValueError, KeyError, TypeError, sqlite3.Error):
         LOG.warning("Cloud configuration/outbox unavailable; local monitoring continues")
         return None, "configuration_or_outbox_error"
+
+
+def start_gate_test_cloud(origin,prefix,local_bucket):
+    """Explicit isolated gate verification; never loads the production token pair."""
+    if origin not in ('synthetic','hardware_gate_sim') or prefix!='parking/test' or local_bucket!='sensor_test':
+        raise ValueError('Gate test cloud requires isolated routing')
+    try:
+        service=CloudSync(CloudClient(load_config(ROOT/'.secrets/cloud-test.json',testing=True)),
+                          Outbox(ROOT/'.runtime/gate-test-cloud-outbox.sqlite3'),data_origin=origin)
+        service.start();return service,None
+    except (OSError,ValueError,KeyError,TypeError,sqlite3.Error):
+        LOG.warning('Isolated gate cloud unavailable; local monitoring continues')
+        return None,'test_cloud_configuration_or_outbox_error'

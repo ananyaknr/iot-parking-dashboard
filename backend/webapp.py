@@ -1,4 +1,4 @@
-"""Local-only authenticated dashboard; tokens never leave this process."""
+"""Local-only dashboard with optional authentication; tokens stay in this process."""
 import hmac
 import threading
 import os
@@ -7,29 +7,32 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 from flask import Flask, Response, jsonify, render_template, request
+from gate_model import GATE_RANGES
+from model import unique_object
 
 ROOT = Path(__file__).resolve().parents[1]
 HISTORY = {
+    'gate':('parking_gate_v2',set(GATE_RANGES)),
     "uno": ("parking_node", {"a1_distance_cm"}),
     "esp32": ("parking_gateway", {"temperature_c", "humidity_pct", "light_raw", "gas_raw"}),
     "camera": ("parking_camera", {"confidence"}),
 }
 
 
-def history_points(records, start, stop, every):
+def history_points(records, start, stop, every, *, counter=False):
     """Fill empty windows and keep any invalid window as a visible gap."""
     values = {}
     for record in records:
         row = record.values
         end = row["_stop"].timestamp()
-        value = row.get("total", 0) / row["count"] if row.get("count") else None
+        value = (row.get('last_value') if counter else row.get("total", 0) / row["count"]) if row.get("count") else None
         values[end] = value if row.get("valid") and value is not None and math.isfinite(value) else None
     first = (int(start.timestamp()) // every + 1) * every
     return [{"time": datetime.fromtimestamp(min(end, stop.timestamp()), timezone.utc).isoformat(),
              "value": values.get(end)}
             for end in range(first, math.ceil(stop.timestamp() / every) * every + 1, every)]
 
-def create_app(latest, query_api, bucket, org, cloud=None):
+def create_app(latest, query_api, bucket, org, cloud=None,gate_events=None,recognition=None):
     # Reserve the other Waitress threads for local live/history requests.
     cloud_query_slot = threading.BoundedSemaphore(1)
     app = Flask(__name__, template_folder=str(ROOT / "dashboard" / "templates"),
@@ -39,6 +42,9 @@ def create_app(latest, query_api, bucket, org, cloud=None):
     @app.before_request
     def authenticate():
         if request.path == "/health":
+            return None
+        if (os.environ.get("DASHBOARD_AUTH_REQUIRED", "yes") == "no"
+                and request.remote_addr in ("127.0.0.1", "::1")):
             return None
         auth = request.authorization
         username = os.environ.get("DASHBOARD_USERNAME", os.environ.get("GRAFANA_USERNAME", "parking-admin"))
@@ -69,12 +75,27 @@ def create_app(latest, query_api, bucket, org, cloud=None):
     def current():
         return jsonify(latest())
 
+    @app.get('/api/gate/events')
+    def events():
+        return jsonify(events=gate_events.recent() if gate_events else [],simulation=True)
+
+    @app.post('/api/integration/recognition')
+    def recognition_result():
+        if recognition is None or not recognition.enabled:
+            return jsonify(error='Recognition delivery awaits teammate agreement'),503
+        try:
+            if not request.is_json:raise ValueError('JSON required')
+            result=recognition.receive(json.loads(request.get_data(cache=False),object_pairs_hook=unique_object))
+            return jsonify(status=result,lcd_delivery='not_sent_contract_pending',physical_movement=False),202
+        except (ValueError,TypeError,KeyError):
+            return jsonify(error='Invalid, stale or uncorrelated recognition result'),400
+
     @app.get("/api/cloud/history")
     def cloud_history():
         source, field = request.args.get("source", "uno"), request.args.get("field", "a1_distance_cm")
         try:
             minutes = int(request.args.get("minutes", "30"))
-            if source not in ("uno", "esp32") or field not in HISTORY[source][1] or not 1 <= minutes <= 43200:
+            if source not in ("uno", "esp32",'gate') or field not in HISTORY[source][1] or not 1 <= minutes <= 43200:
                 raise ValueError()
         except ValueError:
             return jsonify(error="unsupported cloud source, field or range (1–43200 minutes)"), 400
@@ -112,17 +133,18 @@ def create_app(latest, query_api, bucket, org, cloud=None):
           |> group(columns: [])
           |> sort(columns: ["_time"])
           |> window(every: {every}s)
-          |> reduce(identity: {{total: 0.0, count: 0, valid: true, last_ns: 0}},
+          |> reduce(identity: {{total: 0.0, count: 0, valid: true, last_ns: 0, last_value: 0.0}},
             fn: (r, accumulator) => ({{
               total: accumulator.total + (if exists r.{field} then float(v: r.{field}) else 0.0),
               count: accumulator.count + (if exists r.{field} then 1 else 0),
               last_ns: int(v: r._time),
+              last_value: if exists r.{field} then float(v: r.{field}) else 0.0,
               valid: accumulator.valid and (if exists r.{field}_valid then r.{field}_valid else false) and exists r.{field}
                 and (accumulator.last_ns == 0 or int(v: r._time) - accumulator.last_ns <= 10000000000)
             }}))'''
         try:
             records = [record for table in query_api.query(query, org=org) for record in table.records]
-            points = history_points(records, start, stop, every)
+            points = history_points(records, start, stop, every,counter=source=='gate' and not field.endswith('_cm'))
             return jsonify(source=source, field=field, minutes=minutes, interval_seconds=every, points=points)
         except Exception:
             app.logger.warning("History query unavailable", exc_info=False)

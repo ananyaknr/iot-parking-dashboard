@@ -1,14 +1,17 @@
 """Telemetry validation and current-state projection; no I/O or external dependencies."""
 import json
 import math
+from gate_model import GATE_RANGES, validate_gate
 from dataclasses import dataclass, field
 
 TOPICS = {
+    "parking/gate/telemetry": "gate",
     "parking/node/telemetry": "uno",
     "parking/gateway/telemetry": "esp32",
     "parking/camera/result": "camera",
 }
 RANGES = {
+    "gate": GATE_RANGES,
     "uno": {"a1_distance_cm": (2, 400), "m1_distance_cm": (2, 400)},
     "esp32": {"temperature_c": (-40, 80), "humidity_pct": (0, 100),
               "light_raw": (0, 4095), "gas_raw": (0, 4095)},
@@ -37,6 +40,9 @@ def validate(topic, payload):
         raise ValueError("payload exceeds 2048 bytes")
     message = json.loads(payload, object_pairs_hook=unique_object,
                          parse_constant=lambda x: (_ for _ in ()).throw(ValueError("nonfinite JSON")))
+    if source == 'gate':
+        if not isinstance(message,dict):raise ValueError('Gate object required')
+        return source,validate_gate(message)
     if not isinstance(message, dict) or message.get("node") != source:
         raise ValueError("source/topic mismatch")
     if set(message) != SCHEMAS[source]:

@@ -176,7 +176,7 @@ def main():
         publish('parking-test-publisher','issue1/parking/test/node/telemetry',uno,retained=True)
         # Restart our test backend so the retained value arrives on subscription.
         stop_file.write_text('test restart');backend.wait(timeout=15);stop_file.unlink()
-        start('backend-restarted',[sys.executable,ROOT/'backend/main.py'],backend_env)
+        backend=start('backend-restarted',[sys.executable,ROOT/'backend/main.py'],backend_env)
         wait(lambda: latest()['rejected_messages'] >= 1)
         assert not latest()['sources']['uno']['a1_allocation_eligible']
         publish('parking-test-publisher','issue1/parking/test/node/telemetry',uno)
@@ -201,6 +201,76 @@ def main():
         publish('parking-test-publisher','issue1/parking/test/node/telemetry',uno)
         wait(lambda: latest()['sources']['uno']['a1_allocation_eligible'])
         print('PASS real broker outage/reconnect: fail closed until new telemetry',flush=True)
+        if '--gate' in sys.argv:
+            # Reuse the private native server/ACLs; no production credentials or topics.
+            import uuid
+            sys.path.insert(0,str(ROOT/'backend'));sys.path.insert(0,str(ROOT/'backend/tests'))
+            from test_gate_model import GATE
+            from test_model import GATEWAY
+            from gate_model import identity
+            boot=uuid.uuid4().hex
+            gate=dict(GATE,boot_id=boot,event_id=identity(boot,'e',1))
+            stop_file.write_text('gate schema test transition');backend.wait(timeout=15);stop_file.unlink()
+            gate_env=dict(backend_env,GATE_SCHEMA_ROUTING='isolated',
+                          GATE_EVENT_LEDGER_PATH=str(folder/'gate-events.sqlite3'))
+            backend=start('gate-backend',[sys.executable,ROOT/'backend/main.py'],gate_env)
+            wait(lambda:latest()['mqtt_connected'] and latest()['storage_connected'])
+            assert latest()['cloud']['enabled'] is False
+            publish('parking-test-publisher','issue1/parking/test/gate/telemetry',gate)
+            wait(lambda:latest()['sources']['gate']['u1_distance_cm_valid'])
+            publish('parking-test-publisher','issue1/parking/test/gateway/telemetry',GATEWAY)
+            wait(lambda:latest()['sources']['esp32']['temperature_c_valid'])
+            # Legacy occupancy remains separate and cannot become gate availability.
+            publish('parking-test-publisher','issue1/parking/test/node/telemetry',uno)
+            assert latest()['sources']['gate']['event_id']==gate['event_id']
+            gate.update(uptime_ms=2000,u1_distance_cm=10,u1_state='detected',gate_sim_state='open_wait',
+                        arrival_count=1,arrival_id=identity(boot,'a',1),event_seq=2,event_id=identity(boot,'e',2),last_event='arrival')
+            publish('parking-test-publisher','issue1/parking/test/gate/telemetry',gate)
+            wait(lambda:latest()['sources']['gate']['gate_sim_state']=='open_wait')
+            def events():return http(15001,'/api/gate/events',auth=auth)['events']
+            arrival=next(event for event in events() if event['event_id']==gate['event_id'])
+            publish('parking-test-publisher','issue1/parking/test/gate/telemetry',dict(gate,servo_enabled=True))
+            wait(lambda:not latest()['sources']['gate']['payload_valid'])
+            gate['uptime_ms']=2100
+            publish('parking-test-publisher','issue1/parking/test/gate/telemetry',gate)
+            wait(lambda:latest()['sources']['gate']['payload_valid'])
+            publish('parking-test-publisher','issue1/parking/test/gate/telemetry',gate,retained=True)
+            stop_file.write_text('gate restart');backend.wait(timeout=15);stop_file.unlink()
+            backend=start('gate-restarted',[sys.executable,ROOT/'backend/main.py'],gate_env)
+            wait(lambda:latest()['rejected_messages']>0)
+            assert not latest()['sources']['gate']['payload_valid']
+            gate['uptime_ms']=2200
+            publish('parking-test-publisher','issue1/parking/test/gate/telemetry',gate)
+            wait(lambda:latest()['sources']['gate']['payload_valid'])
+            assert next(event for event in events() if event['event_id']==gate['event_id'])['received_at_utc']==arrival['received_at_utc']
+            gate.update(uptime_ms=2500,u1_distance_cm=40,u1_state='clear',u2_distance_cm=10,u2_state='detected',
+                        gate_sim_state='passing',event_seq=3,event_id=identity(boot,'e',3),last_event='passage_detected')
+            publish('parking-test-publisher','issue1/parking/test/gate/telemetry',gate)
+            wait(lambda:latest()['sources']['gate']['gate_sim_state']=='passing')
+            gate.update(uptime_ms=3500,u2_distance_cm=40,u2_state='clear',gate_sim_state='closing',event_seq=4,
+                        event_id=identity(boot,'e',4),last_event='clearance_confirmed')
+            publish('parking-test-publisher','issue1/parking/test/gate/telemetry',gate)
+            wait(lambda:latest()['sources']['gate']['gate_sim_state']=='closing')
+            time.sleep(1)
+            gate.update(uptime_ms=4500,gate_sim_state='closed',completed_count=1,passage_id=identity(boot,'p',1),
+                        event_seq=5,event_id=identity(boot,'e',5),last_event='passage_completed')
+            publish('parking-test-publisher','issue1/parking/test/gate/telemetry',gate)
+            wait(lambda:latest()['sources']['gate']['completed_count']==1)
+            time.sleep(2)
+            for field in ('u1_distance_cm','u2_distance_cm','arrival_count','completed_count','vibration_transition_count'):
+                history=http(15001,'/api/history?source=gate&field='+field+'&minutes=5',auth=auth)
+                assert any(point['value'] is not None for point in history['points']), 'Gate Flux lost '+field
+            assert len({event['event_id'] for event in events()})==len(events())
+            database.terminate();database.wait(timeout=10)
+            wait(lambda:not latest()['storage_connected'])
+            gate['uptime_ms']=5000
+            publish('parking-test-publisher','issue1/parking/test/gate/telemetry',gate)
+            wait(lambda:latest()['sources']['gate']['payload_valid'])
+            wait(lambda:latest()['storage_backlog']>0)
+            database=start('gate-influx-restarted',[native/'influxdb/influxd.exe'],influx_env)
+            wait(lambda:latest()['storage_connected'] and latest()['storage_backlog']==0,seconds=40)
+            print('PASS gate v2 private MQTT/Flux: strict servo rejection, legacy separation, environment, retained/restart, original event identity, U1/U2/counter history and database recovery',flush=True)
+
     finally:
         for process in reversed(processes):
             if process.poll() is None:

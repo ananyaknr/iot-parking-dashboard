@@ -12,7 +12,7 @@ class Queries:
 
 class WebTests(unittest.TestCase):
     def setUp(self):
-        self.env=patch.dict(os.environ,{"DASHBOARD_USERNAME":"demo","DASHBOARD_PASSWORD":"test-only-password"})
+        self.env=patch.dict(os.environ,{"DASHBOARD_USERNAME":"demo","DASHBOARD_PASSWORD":"test-only-password","DASHBOARD_AUTH_REQUIRED":"yes"})
         self.env.start()
         self.client=create_app(lambda:{"mqtt_connected":True,"storage_connected":True},Queries(),"sensor_test","parking").test_client()
         self.headers={"Authorization":"Basic "+base64.b64encode(b"demo:test-only-password").decode()}
@@ -25,6 +25,13 @@ class WebTests(unittest.TestCase):
         self.assertEqual(self.client.get('/api/history?source=bad&field=x',headers=self.headers).status_code,400)
         self.assertEqual(self.client.get('/api/history?minutes=10081',headers=self.headers).status_code,400)
         self.assertEqual(self.client.get('/api/history?minutes=oops',headers=self.headers).status_code,400)
+    def test_local_dashboard_can_disable_login(self):
+        with patch.dict(os.environ, {"DASHBOARD_AUTH_REQUIRED":"no"}):
+            self.assertEqual(self.client.get('/').status_code,200)
+            self.assertEqual(self.client.get('/api/latest').status_code,200)
+            with self.client.get('/static/app.js') as response:
+                self.assertEqual(response.status_code,200)
+            self.assertEqual(self.client.get('/api/latest',environ_overrides={'REMOTE_ADDR':'192.0.2.1'}).status_code,401)
     def test_local_assets_and_no_cdn(self):
         html=self.client.get("/",headers=self.headers).get_data(as_text=True)
         self.assertIn('/static/vendor/chart.umd.min.js',html)

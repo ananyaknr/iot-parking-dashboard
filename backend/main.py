@@ -3,6 +3,7 @@ import logging
 import os
 import queue
 import signal
+import sqlite3
 import threading
 import time
 from datetime import datetime, timezone
@@ -12,29 +13,51 @@ import paho.mqtt.client as mqtt
 from influxdb_client import InfluxDBClient, Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS
 from model import TOPICS, Source
+from gate_model import GateSource
+from gate_events import GateEvents,gate_routing
+from recognition_adapter import RecognitionAdapter
 from runtime import Ingestion, StorageWorker
-from cloud_storage import start_optional_cloud
+from cloud_storage import start_optional_cloud,start_gate_test_cloud
 from webapp import create_app
 from waitress import create_server
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("parking")
-MEASUREMENTS = {"uno": "parking_node", "esp32": "parking_gateway", "camera": "parking_camera"}
+MEASUREMENTS = {"uno": "parking_node", "esp32": "parking_gateway", "camera": "parking_camera", "gate":"parking_gate_v2"}
 
 def main():
     stop = threading.Event()
     messages = queue.Queue(maxsize=1000)
     connected = threading.Event()
-    states = {name: Source(name) for name in MEASUREMENTS}
+    states = {name: GateSource() if name=='gate' else Source(name) for name in MEASUREMENTS}
     received_utc = {name: None for name in MEASUREMENTS}
     state_lock = threading.Lock()
     status = {"dropped": 0, "generation": 0}
     ingestion = Ingestion(states)
     bucket = os.environ.get("INFLUX_BUCKET", "sensor_data")
     prefix = os.environ.get("MQTT_TOPIC_PREFIX", "parking").rstrip("/")
-    wire_topics = {topic.replace("parking/", prefix + "/", 1): topic for topic in TOPICS}
+    origin=os.environ.get('DATA_ORIGIN','hardware')
+    routing=os.environ.get('GATE_SCHEMA_ROUTING','off')
+    approved=os.environ.get('GATE_PRODUCTION_APPROVED')=='yes'
+    gate_enabled=gate_routing(origin,prefix,bucket,routing,approved)
+    wire_topics={topic.replace('parking/',prefix+'/',1):topic for topic in TOPICS
+                 if TOPICS[topic]!='gate' or gate_enabled}
+    if gate_enabled and routing=='isolated' and os.environ.get('GATE_ENVIRONMENT_FROM_PRODUCTION')=='yes':
+        wire_topics['parking/gateway/telemetry']='parking/gateway/telemetry'
+    runtime=Path(__file__).resolve().parents[1]/'.runtime'
+    event_path=Path(os.environ.get('GATE_EVENT_LEDGER_PATH',str(runtime/('gate-test-'+origin+'-events.sqlite3' if routing=='isolated' else 'gate-events.sqlite3')))).resolve()
+    if not event_path.is_relative_to(runtime.resolve()):raise ValueError('Gate ledger must stay within project runtime')
+    events=GateEvents(event_path) if gate_enabled else None
+    event_errors=0
+    def current_gate():
+        with state_lock:return states['gate'].snapshot(time.monotonic())
+    recognition=RecognitionAdapter(current_gate,enabled=gate_enabled and routing=='isolated'
+                                   and os.environ.get('GATE_MOCK_ADAPTER')=='yes')
     org = os.environ.get("INFLUX_ORG", "parking")
-    cloud, cloud_error = start_optional_cloud(os.environ.get("DATA_ORIGIN", "hardware"), prefix, bucket)
+    if gate_enabled and routing=='isolated' and os.environ.get('GATE_TEST_CLOUD')=='yes':
+        cloud,cloud_error=start_gate_test_cloud(origin,prefix,bucket)
+    else:
+        cloud,cloud_error=start_optional_cloud(origin,prefix,bucket,gate_production_approved=approved)
     influx = InfluxDBClient(url=os.environ.get("INFLUX_URL", "http://influxdb:8086"),
                             token=os.environ["INFLUX_TOKEN"], org=org, timeout=4000)
     writer = influx.write_api(write_options=SYNCHRONOUS)
@@ -87,11 +110,13 @@ def main():
             sources = {name: state.snapshot(now) for name, state in states.items()}
             for name in sources:
                 sources[name]["last_received_utc"] = received_utc[name]
+            sources["uno"]["legacy"]=True
         return {"received_at_utc": datetime.now(timezone.utc).isoformat(),
                 "data_origin": os.environ.get("DATA_ORIGIN", "hardware"),
                 "mqtt_connected": connected.is_set(),
                 **storage.snapshot(),
                 "cloud": cloud.snapshot() if cloud else {"enabled": False, "error": cloud_error},
+                'gate_routing':routing,'gate_event_errors':event_errors,'recognition':recognition.snapshot(),
                 "ingestion_connected": connected.is_set() and any(
                     s["fresh"] and s["payload_valid"] for s in sources.values()),
                 "ingestion_queue_depth": messages.qsize(),
@@ -99,7 +124,7 @@ def main():
                 "discarded_messages": ingestion.discarded,
                 "sources": sources}
 
-    app = create_app(latest, influx.query_api(), bucket, org, cloud=cloud)
+    app = create_app(latest, influx.query_api(), bucket, org, cloud=cloud,gate_events=events,recognition=recognition)
     server = create_server(app, host="127.0.0.1", port=int(os.environ.get("DASHBOARD_PORT", "5000")), threads=4)
     threading.Thread(target=server.run, daemon=True).start()
     log.info("Dashboard listening on http://127.0.0.1:%s", os.environ.get("DASHBOARD_PORT", "5000"))
@@ -112,7 +137,10 @@ def main():
              .tag("data_origin", os.environ.get("DATA_ORIGIN", "hardware"))
              .time(stamp, WritePrecision.NS))
         for name, value in fields.items():
-            p.field(name, value)
+            if value is not None:
+                # JSON permits whole-number distances; Influx field types must
+                # stay float across all samples and producer implementations.
+                p.field(name,float(value) if source=='gate' and name.endswith('_cm') else value)
         return p
 
     try:
@@ -135,6 +163,20 @@ def main():
                     if source:
                         received_utc[source] = stamp.isoformat()
                         storage.submit(point(source, states[source].snapshot(received_mono), "telemetry", stamp))
+                        if source=='gate' and events is not None:
+                            try:
+                                remembered=events.remember(states[source].message,stamp)
+                                if remembered:
+                                    original,event=remembered
+                                    p=(Point('parking_gate_events_v2').tag('source','gate')
+                                       .tag('event_id',event['event_id']).tag('data_origin',origin)
+                                       .time(original,WritePrecision.NS))
+                                    for key,value in event.items():
+                                        if value is not None and key!='event_id':
+                                            p.field(key,float(value) if key.endswith('_cm') else value)
+                                    storage.submit(p)
+                            except (ValueError,OSError,sqlite3.Error):
+                                event_errors+=1;log.warning('Gate event ledger unavailable; live processing continues')
                         if cloud is not None:
                             cloud.submit(source, states[source].message, stamp)
                     elif ingestion.rejected > rejected_before:
@@ -147,6 +189,7 @@ def main():
                 stamp = datetime.now(timezone.utc)
                 with state_lock:
                     for source, state in states.items():
+                        if source=="gate" and not gate_enabled:continue
                         storage.submit(point(source, state.snapshot(now), "status", stamp))
                 next_snapshot = now + 1
             stop.wait(0.05)
@@ -158,6 +201,7 @@ def main():
         storage_thread.join()
         if cloud is not None:
             cloud.close()
+        if events is not None:events.close()
         writer.close()
         influx.close()
 

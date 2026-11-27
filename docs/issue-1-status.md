@@ -1,5 +1,43 @@
 # Issue 1 implementation and ownership ledger
 
+## Current gate v2 update — 2026-11-26
+
+At 22:08 Bangkok the essential **servo-disabled hardware demonstration passed**:
+restored integrated ESP32 on COM10, verified UNO on COM7, actual bidirectional
+UART/LCD CAR and SUPERCAR, U1 arrival → U2 passage → clearance → closed with
+counts 1/1, vibration transitions 0 → 2, and fresh environmental data through
+MQTT, local `sensor_test`, dashboard and cloud `parking_sensor_test`. See the
+timestamped evidence at the top of [the ledger](gate-v2-verification.md).
+The guided standalone cycle uses a 120-second window; its original 20-second
+attempt timed out. Integrated authorization stays at 20 seconds. The owner
+corrected the 1 kΩ / 2 kΩ divider and separated sensor power onto two breadboards;
+agent verification did not change wiring. Prior physical-blocker statements
+below are historical. Servo actuation, camera/team contracts, calibration and
+long-duration acceptance remain pending; PR #4 stays draft and unmerged.
+
+The latest owner assignment replaces live bay allocation with U1 arrival/U2
+passage and a servo-disabled UNO-local simulation. See
+[actual gate evidence](gate-v2-verification.md), [bench procedure](gate-sim-test.md)
+and [v2 teammate proposal](integration-v2-proposal.md). The older ledger below is
+historical; it must not be interpreted as current installation or acceptance.
+
+Implemented: portable state machine and strict bidirectional UART protocol,
+versioned ESP32 forwarding, independent freshness, bounded event identity ledger,
+separate local/cloud gate measurements, six-chart dashboard and disabled mock
+recognition adapter. Recognition/session/photo ownership remains the teammate's;
+no teammate code was changed. Production gate routing is off by default.
+
+Rubric: four original sensing types plus owner-reported KY-002 installation;
+actual new sensor calibration remains pending. LCD/actuator and recognition
+behavior rubric acceptance remains partial: no powered servo and no agreed real
+recognition transport. Old environmental/cloud acceptance remains valid and is
+not replaced by synthetic gate tests. 24-hour disk growth remains unmeasured.
+
+Compiled both boards; 51 Python regressions, shared C++ core and real Chrome
+fixture tests passed. Real cloud test-bucket gate duplicate/history verification
+passed. Physical gate/LCD/UART acceptance and joint teammate acceptance are not
+claimed. Full results and explicit hardware blockers are in the evidence ledger.
+
 Date: 2026-11-26, Asia/Bangkok. Baseline: `4abb83b`.
 This is a partial remediation of [issue 1](https://github.com/ananyaknr/iot-parking-dashboard/issues/1), not completion of physical or joint acceptance.
 
