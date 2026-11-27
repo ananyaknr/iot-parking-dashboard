@@ -4,11 +4,17 @@ import threading
 import os
 import math
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from flask import Flask, Response, jsonify, render_template, request
 from gate_model import GATE_RANGES
 from model import unique_object
+
+import parking_proxy
+
+UPLOAD_LIMIT = 15 * 1024 * 1024
+UUID_RE = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 
 ROOT = Path(__file__).resolve().parents[1]
 HISTORY = {
@@ -43,6 +49,9 @@ def create_app(latest, query_api, bucket, org, cloud=None,gate_events=None,recog
     def authenticate():
         if request.path == "/health":
             return None
+        if request.path == "/api/parking/analyze":
+            # Photos for recognition are the only large request bodies this dashboard accepts.
+            request.max_content_length = UPLOAD_LIMIT + 64 * 1024
         if (os.environ.get("DASHBOARD_AUTH_REQUIRED", "yes") == "no"
                 and request.remote_addr in ("127.0.0.1", "::1")):
             return None
@@ -58,7 +67,7 @@ def create_app(latest, query_api, bucket, org, cloud=None,gate_events=None,recog
         response.headers["Cache-Control"] = "no-store" if request.path.startswith("/api/") else "no-cache"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob:; frame-ancestors 'none'"
         return response
 
     @app.get("/")
@@ -149,5 +158,119 @@ def create_app(latest, query_api, bucket, org, cloud=None,gate_events=None,recog
         except Exception:
             app.logger.warning("History query unavailable", exc_info=False)
             return jsonify(error="Historical storage is temporarily unavailable", points=[]), 503
+
+    # ---- Camera/parking service (cameras, recognition, bays, visits, decisions, photos) ----
+    def parking_error(exc):
+        return jsonify(error=str(exc), available=exc.status < 500), exc.status
+
+    @app.get("/api/parking/status")
+    def parking_status():
+        try:
+            return jsonify(parking_proxy.status())
+        except parking_proxy.ParkingUnavailable as exc:
+            return parking_error(exc)
+
+    @app.get("/api/parking/history")
+    def parking_history():
+        try:
+            limit = int(request.args.get("limit", "100"))
+        except ValueError:
+            return jsonify(error="limit must be an integer"), 400
+        if not 1 <= limit <= 100:
+            return jsonify(error="limit must be 1–100"), 400
+        try:
+            return jsonify(parking_proxy.history(limit))
+        except parking_proxy.ParkingUnavailable as exc:
+            return parking_error(exc)
+
+    @app.get("/api/parking/media/<uuid:media_id>")
+    def parking_media(media_id):
+        try:
+            return Response(parking_proxy.media(str(media_id)), mimetype="image/jpeg")
+        except parking_proxy.ParkingUnavailable as exc:
+            return Response("Photo unavailable", exc.status if exc.status == 404 else 503, mimetype="text/plain")
+
+    @app.get("/api/camera/frame")
+    def camera_frame():
+        try:
+            data, camera_ms = parking_proxy.camera_frame(request.args.get("camera", ""))
+        except parking_proxy.ParkingUnavailable as exc:
+            return parking_error(exc)
+        response = Response(data, mimetype="image/jpeg")
+        if camera_ms and re.fullmatch(r"[0-9.]{1,12}", camera_ms):
+            response.headers["X-Camera-Ms"] = camera_ms
+        return response
+
+    # One live preview per camera: each open stream holds a server thread, so a second
+    # viewer of the same camera is refused and that page falls back to still frames.
+    stream_slots = {role: threading.BoundedSemaphore(1) for role in parking_proxy.CAMERAS}
+
+    @app.get("/api/camera/stream")
+    def camera_stream():
+        camera = request.args.get("camera", "")
+        if camera not in stream_slots:
+            return jsonify(error="camera must be entrance or exit"), 400
+        slot = stream_slots[camera]
+        if request.args.get("probe"):
+            # Lets a page whose stream failed tell "busy elsewhere" apart from "camera down".
+            return jsonify(busy=slot._value == 0), 200
+        if not slot.acquire(blocking=False):
+            return jsonify(error="This camera is already streaming to another page"), 409
+        try:
+            content_type, upstream = parking_proxy.camera_stream(camera)
+        except parking_proxy.ParkingUnavailable as exc:
+            slot.release()
+            return parking_error(exc)
+
+        def relay():
+            try:
+                while True:
+                    chunk = upstream.read1(parking_proxy.STREAM_CHUNK) if hasattr(upstream, "read1") else upstream.read(parking_proxy.STREAM_CHUNK)
+                    if not chunk:
+                        break
+                    yield chunk
+            except (OSError, ValueError):
+                pass
+            finally:
+                upstream.close()
+                slot.release()
+
+        return Response(relay(), mimetype=content_type.split(";")[0], content_type=content_type, direct_passthrough=True)
+
+    @app.post("/api/parking/analyze")
+    def parking_analyze():
+        image = request.files.get("image")
+        camera = request.form.get("camera", "")
+        bbox = request.form.get("plate_bbox") or None
+        previous = request.form.get("previous_observation_id") or None
+        if camera not in parking_proxy.CAMERAS:
+            return jsonify(error="camera must be entrance or exit"), 400
+        if bbox is not None and not re.fullmatch(r"\d{1,5},\d{1,5},\d{1,5},\d{1,5}", bbox):
+            return jsonify(error="plate_bbox must be x1,y1,x2,y2 in pixels"), 400
+        if previous is not None and not UUID_RE.fullmatch(previous):
+            return jsonify(error="previous_observation_id must be a UUID"), 400
+        if image is None:
+            return jsonify(error="image is required"), 400
+        data = image.read(UPLOAD_LIMIT + 1)
+        if not data or len(data) > UPLOAD_LIMIT:
+            return jsonify(error="image must be 1 byte–15 MiB"), 413
+        image_type = image.mimetype if image.mimetype in ("image/jpeg", "image/png", "image/webp") else "application/octet-stream"
+        try:
+            return jsonify(parking_proxy.analyze(data, image_type, camera, bbox, previous))
+        except parking_proxy.ParkingUnavailable as exc:
+            return parking_error(exc)
+
+    @app.post("/api/parking/commit")
+    def parking_commit():
+        body = request.get_json(silent=True) or {}
+        observation_id, request_id = body.get("observation_id"), body.get("request_id")
+        if not isinstance(observation_id, str) or not UUID_RE.fullmatch(observation_id):
+            return jsonify(error="observation_id must be a UUID"), 400
+        if not isinstance(request_id, str) or not 1 <= len(request_id) <= 128:
+            return jsonify(error="request_id must be 1–128 characters"), 400
+        try:
+            return jsonify(parking_proxy.commit(observation_id, request_id))
+        except parking_proxy.ParkingUnavailable as exc:
+            return parking_error(exc)
 
     return app

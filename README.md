@@ -72,6 +72,33 @@ existing setup scripts; never commit tokens. Cloud is Free Plan only, with
 test data in test buckets and the servo disconnected. Production migration and
 merge require approval.
 
+## Web app dashboard (branch `feature/dashboard-webapp`)
+
+The dashboard at http://127.0.0.1:5000 is now a single-page web app (no CDN,
+same strict CSP) built on top of the gate v2 work:
+
+| Page | Route | Data |
+|---|---|---|
+| Cover | `#/` | — |
+| Live dashboard | `#/dashboard` | Parking bays (parking service) · barrier gate v2 · recognition · environment · cloud |
+| Gate operation | `#/gate` | Live ESP32-CAM video, capture/upload, plate box, analyze → commit |
+| Today / History | `#/admin`, `#/admin/vehicles` | Visits, decisions, charts, CSV, plus the six sensor history charts |
+| Gate decisions · Parking spaces · Devices | `#/admin/review`, `#/admin/slots`, `#/admin/devices` | Ledger, bays, devices and live MQTT topics |
+
+The browser only talks to Flask. `backend/parking_proxy.py` forwards
+`/api/parking/*` and `/api/camera/*` to the teammate FastAPI service at
+`PARKING_API_URL` (default `http://127.0.0.1:8000`). When that service is not
+running, parking pages show clearly labelled **Sample data**; sensor and gate
+cards keep working from MQTT/InfluxDB.
+
+Run it:
+
+1. Start this backend as usual (`scripts/start-native.ps1`) and open http://127.0.0.1:5000.
+2. Optional, for real parking/camera data: in a clone of `vvryw/intelligence-parking-lot`,
+   start its API with `uvicorn` on port 8000 (or 8010 if Windows blocks 8000, then
+   set `PARKING_API_URL=http://127.0.0.1:8010` in this repo's `.env` and restart).
+3. Browser regression: `node scripts/test-dashboard.cjs` (synthetic fixtures only).
+
 Native Windows deployment: **UNO → UART → ESP32 → Wi-Fi → authenticated Mosquitto → Python/Flask → InfluxDB OSS 2.x → local dashboard**.
 
 No Docker, WSL, Node.js, React or Grafana is required. Earlier Compose/Grafana files are preserved as inactive reference material. Do not run them for this deployment.

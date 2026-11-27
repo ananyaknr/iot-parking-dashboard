@@ -1,29 +1,333 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Barrier Gate · Simulation</title><link rel="stylesheet" href="/static/style.css"><script defer src="/static/vendor/chart.umd.min.js"></script><script defer src="/static/app.js"></script></head>
-<body><div class="shell">
-<header><div class="eyebrow">INTELLIGENCE PARKING LOT</div><div class="heading"><div><h1>Barrier gate monitoring</h1><p>U1 approach / U2 passage and environmental telemetry · local Windows server</p></div><span id="system" class="badge muted">Connecting</span></div></header>
-<div class="connection-bar" aria-live="polite"><span id="mqtt-status">Broker · Unknown</span><span id="ingestion-status">Ingestion · Unknown</span><span id="uno-status">UNO · Unknown</span><span id="esp32-status">ESP32 · Unknown</span><span id="storage-status">Storage · Unknown</span><span id="updated">Waiting for readings</span></div>
-<main><section aria-labelledby="gate-heading"><div class="section-heading"><h2 id="gate-heading">Barrier gate</h2><span class="badge warning">SIMULATION · Servo disconnected</span></div><div class="parking-grid">
-<article class="card slot"><div class="card-label">SIMULATED GATE STATE</div><div id="gate-sim-state" class="state unknown">Unknown</div><div class="slot-detail"><span>Servo</span><strong id="servo-status">Unknown</strong></div><p id="gate-event">Waiting for gate-v2 telemetry</p></article>
-<article class="card slot"><div class="card-label">U1 · APPROACH ZONE</div><div id="u1-state" class="state unknown">Unknown</div><div class="slot-detail"><span>Distance</span><strong id="u1-distance">Unknown</strong></div><p>Unknown or no echo is never clear</p></article>
-<article class="card slot"><div class="card-label">U2 · PASSAGE ZONE</div><div id="u2-state" class="state unknown">Unknown</div><div class="slot-detail"><span>Distance</span><strong id="u2-distance">Unknown</strong></div><p>Passage then sustained valid clearance</p></article>
-</div><div class="sensor-grid gate-counts"><article class="card metric"><div class="card-label">ARRIVALS · THIS CONTROLLER BOOT</div><div class="metric-value" id="arrivals">Unknown</div></article><article class="card metric"><div class="card-label">COMPLETED SIMULATED PASSAGES</div><div class="metric-value" id="passages">Unknown</div></article></div></section>
-<section aria-labelledby="recognition-heading"><div class="section-heading"><h2 id="recognition-heading">Recognition</h2><span id="recognition-status">Not configured</span></div><article class="card recognition"><div><div class="card-label">LICENSE PLATE · ORIGINAL TEXT</div><strong id="license-plate">Unavailable</strong></div><div><div class="card-label">VEHICLE TYPE</div><strong id="vehicle-type">UNKNOWN</strong></div><div><div class="card-label">RESULT TIME</div><strong id="recognition-time">Unavailable</strong></div><p id="recognition-note">Waiting for the agreed teammate interface</p></article></section>
-<section aria-labelledby="environment-heading"><div class="section-heading"><h2 id="environment-heading">Environment</h2><span>DHT22 · LDR · MQ-2</span></div><div class="sensor-grid">
-<article class="card metric"><div class="card-label">TEMPERATURE</div><div class="metric-value" id="temperature">—</div><p>Degrees Celsius</p></article>
-<article class="card metric"><div class="card-label">RELATIVE HUMIDITY</div><div class="metric-value" id="humidity">—</div><p>Percent relative humidity</p></article>
-<article class="card metric"><div class="card-label">AMBIENT LIGHT</div><div class="metric-value" id="light">—</div><p>Raw ADC · 0–4095</p></article>
-<article class="card metric"><div class="card-label">GAS · MQ-2</div><div class="metric-value" id="gas">—</div><p>Raw ADC · Uncalibrated, not ppm</p></article>
-<article class="card metric"><div class="card-label">KY-002 · SAMPLED TRANSITIONS</div><div class="metric-value" id="vibration-count">Unknown</div><p id="vibration-raw">Raw level unknown · Polarity unverified</p></article></div></section>
-<section aria-labelledby="cloud-heading"><div class="section-heading"><h2 id="cloud-heading">Sensor cloud archive</h2><span>Optional · Local-first</span></div><article class="card" aria-live="polite"><p id="cloud-status">Cloud · Checking configuration</p><p id="cloud-detail">Live monitoring does not depend on internet access.</p></article></section>
-<section aria-labelledby="history-heading"><div class="section-heading"><h2 id="history-heading">Historical readings</h2><label>Data source <select id="history-source"><option value="local">Local</option><option value="cloud">Cloud</option></select></label><button type="button" id="history-refresh">Refresh</button><label>Time range <select id="range"><option value="5">Last 5 minutes</option><option value="30" selected>Last 30 minutes</option><option value="60">Last hour</option><option value="1440">Last 24 hours</option><option value="10080">Last 7 days</option><option value="43200" id="cloud-range" hidden disabled>Last 30 days (cloud)</option></select></label></div><p id="history-status" class="helper">Loading history…</p><div class="chart-grid">
-<article class="card chart-card"><h3>U1 / U2 distance <span>cm</span></h3><div class="canvas-wrap"><canvas id="distance-chart" aria-label="U1 and U2 distance history" role="img"></canvas></div></article>
-<article class="card chart-card"><h3>Temperature & humidity <span>°C / %</span></h3><div class="canvas-wrap"><canvas id="environment-chart" aria-label="Temperature and humidity history" role="img"></canvas></div></article>
-<article class="card chart-card"><h3>Ambient light <span>raw ADC</span></h3><div class="canvas-wrap"><canvas id="light-chart" aria-label="Light history" role="img"></canvas></div></article>
-<article class="card chart-card"><h3>Gas · uncalibrated <span>raw ADC</span></h3><div class="canvas-wrap"><canvas id="gas-chart" aria-label="Uncalibrated gas raw ADC history" role="img"></canvas></div></article>
-<article class="card chart-card"><h3>Simulated arrivals / passages <span>counts since controller boot</span></h3><div class="canvas-wrap"><canvas id="counts-chart" aria-label="Arrival and completed passage counters" role="img"></canvas></div></article>
-<article class="card chart-card"><h3>Vibration transitions <span>sampled · not calibrated events</span></h3><div class="canvas-wrap"><canvas id="vibration-chart" aria-label="Vibration transition counter history" role="img"></canvas></div></article>
-</div></section></main>
-<footer><span>Refresh every 2 seconds · Stale after 10 seconds · 7-day retention</span><span>Physical actuation disabled · Recognition/session integration pending agreement</span></footer>
-</div></body></html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Intelligence Parking Lot</title>
+<link rel="stylesheet" href="/static/style.css">
+<script defer src="/static/vendor/chart.umd.min.js"></script>
+<script defer src="/static/demo-data.js"></script>
+<script defer src="/static/app.js"></script>
+</head>
+<body>
+
+<!-- ============================== COVER ============================== -->
+<section class="view cover" data-view="cover" aria-labelledby="cover-title">
+  <nav class="cover-nav">
+    <a class="brand" href="#/"><span class="brand-mark" aria-hidden="true">P</span><span>Intelligence Parking Lot</span></a>
+    <div class="cover-links">
+      <a href="#/dashboard">Live dashboard</a>
+      <a href="#/gate">Gate operation</a>
+      <a href="#/admin">Admin console</a>
+    </div>
+  </nav>
+  <div class="cover-body">
+    <div class="cover-copy">
+      <span class="pill">2110575 IoT Systems and Digital Solutions</span>
+      <h1 id="cover-title">Intelligence<br>Parking Lot</h1>
+      <p class="cover-sub">Camera-based plate reading, vehicle classification<br>and automatic slot allocation for a smart car park</p>
+      <span class="cover-rule" aria-hidden="true"></span>
+      <div class="cover-actions">
+        <a class="btn btn-primary" href="#/dashboard">Open live dashboard</a>
+        <a class="btn btn-ghost" href="#/admin">Admin console</a>
+      </div>
+    </div>
+    <div class="cover-art" aria-hidden="true">
+      <svg viewBox="0 0 360 300" class="lot-svg">
+        <rect x="0" y="0" width="360" height="300" rx="28" class="art-bg"/>
+        <rect x="40" y="36" width="130" height="150" class="bay-line" fill="none"/>
+        <rect x="190" y="36" width="130" height="150" class="bay-line" fill="none"/>
+        <path d="M92 52a14 14 0 0 1 26 0M86 46a22 22 0 0 1 38 0" class="wave"/>
+        <path d="M242 52a14 14 0 0 1 26 0M236 46a22 22 0 0 1 38 0" class="wave"/>
+        <rect x="72" y="72" width="66" height="100" rx="18" class="car"/>
+        <rect x="82" y="88" width="46" height="22" rx="6" class="glass"/>
+        <rect x="82" y="128" width="46" height="18" rx="5" class="glass"/>
+        <rect x="66" y="90" width="7" height="20" rx="3" class="car"/>
+        <rect x="137" y="90" width="7" height="20" rx="3" class="car"/>
+        <rect x="222" y="72" width="66" height="100" rx="18" class="car-red"/>
+        <rect x="232" y="88" width="46" height="22" rx="6" class="glass"/>
+        <rect x="232" y="128" width="46" height="18" rx="5" class="glass"/>
+        <rect x="216" y="90" width="7" height="20" rx="3" class="car-red"/>
+        <rect x="287" y="90" width="7" height="20" rx="3" class="car-red"/>
+        <rect x="40" y="208" width="280" height="62" rx="16" class="gate-bg"/>
+        <circle cx="70" cy="240" r="9" class="gate-post"/>
+        <path d="M70 240H250" class="gate-bar"/>
+        <path d="M100 240h18M136 240h18M172 240h18M208 240h18" class="gate-stripe"/>
+        <rect x="272" y="226" width="30" height="26" rx="6" class="cam"/>
+        <circle cx="287" cy="239" r="6" class="cam-lens"/>
+        <path d="M278 218a14 14 0 0 1 18 0M282 213a8 8 0 0 1 10 0" class="wave small"/>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- ============================== APP SHELL ============================== -->
+<div class="app" id="app-shell">
+  <aside class="sidebar" aria-label="Main navigation">
+    <a class="brand side-brand" href="#/"><span class="brand-mark" aria-hidden="true">P</span><span>Parking Lot</span></a>
+    <button type="button" class="menu-toggle" id="menu-toggle" aria-expanded="false" aria-controls="side-nav">Menu</button>
+    <nav id="side-nav">
+      <div class="nav-group">Monitoring</div>
+      <a href="#/dashboard" data-route="dashboard"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>Live dashboard</a>
+      <div class="nav-group">Operation</div>
+      <a href="#/gate" data-route="gate"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="3"/><path d="M8.5 7l1.5-3h4l1.5 3"/><circle cx="12" cy="13.5" r="3.5"/></svg>Gate operation</a>
+      <div class="nav-group">Administration</div>
+      <a href="#/admin" data-route="admin"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="9" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="10" width="8" height="11" rx="2"/><rect x="3" y="14" width="8" height="7" rx="2"/></svg>Today</a>
+      <a href="#/admin/vehicles" data-route="admin/vehicles"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h2M14 14h2M8 17h2"/></svg>History</a>
+      <a href="#/admin/review" data-route="admin/review"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.6-3.4 8.3-8 9-4.6-.7-8-4.4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>Gate decisions<span class="nav-count" id="review-count">0</span></a>
+      <a href="#/admin/slots" data-route="admin/slots"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11l1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11"/><rect x="3" y="11" width="18" height="6.5" rx="2"/><path d="M6.5 17.5v2M17.5 17.5v2"/><path d="M7.5 14.2h.01M16.5 14.2h.01" stroke-width="2.6"/></svg>Parking spaces</a>
+      <a href="#/admin/devices" data-route="admin/devices"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/><rect x="10" y="10" width="4" height="4" rx=".5"/><path d="M9.5 3v3.5M14.5 3v3.5M9.5 17.5V21M14.5 17.5V21M3 9.5h3.5M3 14.5h3.5M17.5 9.5H21M17.5 14.5H21"/></svg>Devices</a>
+    </nav>
+    <div class="side-foot">2110575 · Group 28</div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs"><a href="#/">Home</a><span>/</span><strong id="crumb">Live dashboard</strong></div>
+      <div class="top-right">
+        <span id="system" class="badge muted">Connecting</span>
+        <span class="user"><span class="avatar" aria-hidden="true">A</span><span class="user-name">Administrator</span></span>
+      </div>
+    </header>
+
+    <!-- ---------------- LIVE DASHBOARD (original element IDs preserved) ---------------- -->
+    <section class="view page" data-view="dashboard">
+      <div class="page-head">
+        <div><div class="eyebrow">Monitoring</div><h1>Sensor monitoring</h1><p>Live parking, barrier gate and environmental telemetry · local Windows server</p></div>
+      </div>
+      <div class="connection-bar" aria-live="polite"><span id="mqtt-status">Broker · Unknown</span><span id="ingestion-status">Ingestion · Unknown</span><span id="uno-status">UNO gate · Unknown</span><span id="esp32-status">ESP32 · Unknown</span><span id="storage-status">Storage · Unknown</span><span id="updated">Waiting for readings</span></div>
+
+      <div class="section-heading"><h2 id="parking-heading">Parking</h2><span>From the parking service · refreshes every 5 seconds</span></div>
+      <div class="live-park theme-light">
+        <div class="live-kpis">
+          <div class="vstat"><span class="vstat-ico blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 11l1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11"/><rect x="3" y="11" width="18" height="6.5" rx="2"/><path d="M6.5 17.5v2M17.5 17.5v2"/></svg></span>
+            <div><div class="vstat-label">Cars in the lot</div><div class="vstat-value" id="live-cars">—</div><div class="vstat-sub" id="live-cars-sub">—</div><div class="vstat-sub" id="live-cars-kinds">—</div></div></div>
+          <div class="vstat"><span class="vstat-ico green" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/></svg></span>
+            <div><div class="vstat-label">Available spaces</div><div class="vstat-value" id="live-avail">—</div><div class="vstat-sub" id="live-avail-sub">—</div></div></div>
+        </div>
+        <article class="ncard">
+          <div class="ncard-head"><h3>Parking spaces</h3><a class="nlink" href="#/admin/slots">Details</a></div>
+          <div class="gate-bays today-bays" id="live-bays"></div>
+          <h4 class="nsub">Vehicle types today</h4><div id="live-types" class="ntbars"></div>
+        </article>
+      </div>
+
+      <div class="section-heading"><h2 id="gate-heading">Barrier gate</h2><span class="badge warning">SIMULATION · Servo disconnected</span></div>
+      <div class="parking-grid">
+        <article class="card slot"><div class="card-label">SIMULATED GATE STATE</div><div id="gate-sim-state" class="state unknown">Unknown</div><div class="slot-detail"><span>Servo</span><strong id="servo-status">Unknown</strong></div><p id="gate-event">Waiting for gate-v2 telemetry</p></article>
+        <article class="card slot"><div class="card-label">U1 · APPROACH ZONE</div><div id="u1-state" class="state unknown">Unknown</div><div class="slot-detail"><span>Distance</span><strong id="u1-distance">Unknown</strong></div><p>Unknown or no echo is never clear</p></article>
+        <article class="card slot"><div class="card-label">U2 · PASSAGE ZONE</div><div id="u2-state" class="state unknown">Unknown</div><div class="slot-detail"><span>Distance</span><strong id="u2-distance">Unknown</strong></div><p>Passage then sustained valid clearance</p></article>
+      </div>
+      <div class="sensor-grid gate-counts">
+        <article class="card metric"><div class="card-label">ARRIVALS · THIS CONTROLLER BOOT</div><div class="metric-value" id="arrivals">Unknown</div></article>
+        <article class="card metric"><div class="card-label">COMPLETED SIMULATED PASSAGES</div><div class="metric-value" id="passages">Unknown</div></article>
+      </div>
+
+      <div class="section-heading"><h2 id="recognition-heading">Recognition</h2><span id="recognition-status">Not configured</span></div>
+      <article class="card recognition"><div><div class="card-label">LICENSE PLATE · ORIGINAL TEXT</div><strong id="license-plate">Unavailable</strong></div><div><div class="card-label">VEHICLE TYPE</div><strong id="vehicle-type">UNKNOWN</strong></div><div><div class="card-label">RESULT TIME</div><strong id="recognition-time">Unavailable</strong></div><p id="recognition-note">Waiting for the agreed teammate interface</p></article>
+
+      <div class="section-heading"><h2 id="environment-heading">Environment</h2><span>DHT22 · LDR · MQ-2 · KY-002</span></div>
+      <div class="sensor-grid env5">
+        <article class="card metric"><div class="metric-top"><div class="card-label">TEMPERATURE</div><span class="chip-ico t" aria-hidden="true">°C</span></div><div class="metric-value" id="temperature">—</div><p>Degrees Celsius</p></article>
+        <article class="card metric"><div class="metric-top"><div class="card-label">RELATIVE HUMIDITY</div><span class="chip-ico h" aria-hidden="true">%</span></div><div class="metric-value" id="humidity">—</div><p>Percent relative humidity</p></article>
+        <article class="card metric"><div class="metric-top"><div class="card-label">AMBIENT LIGHT</div><span class="chip-ico l" aria-hidden="true">☀</span></div><div class="metric-value" id="light">—</div><p>Raw ADC · 0–4095</p></article>
+        <article class="card metric"><div class="metric-top"><div class="card-label">GAS · MQ-2</div><span class="chip-ico g" aria-hidden="true">G</span></div><div class="metric-value" id="gas">—</div><p>Raw ADC · Uncalibrated, not ppm</p></article>
+        <article class="card metric"><div class="metric-top"><div class="card-label">KY-002 · SAMPLED TRANSITIONS</div><span class="chip-ico v" aria-hidden="true">≈</span></div><div class="metric-value" id="vibration-count">Unknown</div><p id="vibration-raw">Raw level unknown · Polarity unverified</p></article>
+      </div>
+
+      <div class="section-heading"><h2 id="cloud-heading">Sensor cloud archive</h2><span>Optional · Local-first</span></div>
+      <article class="card cloud-card" aria-live="polite"><p id="cloud-status">Cloud · Checking configuration</p><p id="cloud-detail">Live monitoring does not depend on internet access.</p></article>
+
+      <footer class="page-foot"><span>Refresh every 2 seconds · Stale after 10 seconds · 7-day retention</span><span>Physical actuation disabled · Gate simulation only</span></footer>
+    </section>
+
+    <!-- ---------------- GATE OPERATION (camera + recognition, from the parking service) ---------------- -->
+    <section class="view page" data-view="gate">
+      <div class="page-head">
+        <div><div class="eyebrow">Operation</div><h1>Gate operation</h1><p>Capture → review → decide · Gemini vehicle class + PaddleOCR plate · simulated gate</p></div>
+        
+      </div>
+      <div class="demo-banner" data-gate-offline hidden><strong>Parking service offline</strong> Start the camera/parking service (FastAPI) to capture and register vehicles. Nothing on this page uses sample data.</div>
+
+      <div class="cam-grid">
+        <article class="card cam-card" id="cam-entrance" data-camera="entrance">
+          <div class="cam-head"><h3>Entrance · Coming in</h3><span class="tag gray" id="cam-entrance-tag">Connecting</span></div>
+          <div class="cam-view"><img id="cam-entrance-img" alt="Live entrance camera" hidden><span id="cam-entrance-msg">Waiting for camera…</span></div>
+        </article>
+        <article class="card cam-card" id="cam-exit" data-camera="exit">
+          <div class="cam-head"><h3>Exit · Going out</h3><span class="tag gray" id="cam-exit-tag">Connecting</span></div>
+          <div class="cam-view"><img id="cam-exit-img" alt="Live exit camera" hidden><span id="cam-exit-msg">Waiting for camera…</span></div>
+        </article>
+      </div>
+
+      <div class="work-grid">
+        <article class="card">
+          <div class="card-head"><h3>Capture</h3><div class="seg" id="dir-seg"><button type="button" class="on" data-dir="entrance">Entrance</button><button type="button" data-dir="exit">Exit</button></div></div>
+          <div class="capture-actions">
+            <button type="button" class="btn btn-primary" id="g-capture">Capture from camera</button>
+            <label class="btn btn-outline file-btn" for="g-file">Upload test photo</label><input id="g-file" type="file" accept="image/jpeg,image/png,image/webp" class="visually-hidden">
+            <button type="button" class="btn btn-outline" id="g-reset" hidden>Back to live view</button>
+          </div>
+          <div class="finder" id="g-finder">
+            <span id="g-finder-msg">Choose a direction, then capture a fresh photo or upload a test photo.</span>
+            <div class="stage" id="g-stage" hidden><img id="g-still" alt="Captured photo. Drag around the license plate to select it." draggable="false"><div class="plate-sel" id="g-box" hidden></div></div>
+          </div>
+          <p class="helper g-hint" id="g-hint">Live previews refresh about once a second while this page is open.</p>
+        </article>
+
+        <article class="card recog">
+          <ol class="stepper" id="g-steps"><li data-step="1" class="on">Capture</li><li data-step="2">Review</li><li data-step="3">Decide</li></ol>
+          <p class="g-status" id="g-status" data-state="">Ready.</p>
+          <div class="recog-grid">
+            <div class="recog-plate"><span class="lbl">License plate</span><span class="plate big none" id="g-plate">—</span><span class="sub" id="g-ocr-conf">OCR confidence —</span></div>
+            <div><span class="lbl">Vehicle</span><strong id="g-vehicle">—</strong><span class="sub" id="g-vehicle-conf">—</span></div>
+            <div><span class="lbl">Bay type</span><strong id="g-kind">—</strong><span class="sub" id="g-model">Model —</span></div>
+          </div>
+          <div class="crop-row"><img id="g-crop" alt="Enhanced plate crop sent to OCR" hidden><dl class="timings"><dt>Camera</dt><dd id="g-t-cam">—</dd><dt>Gemini</dt><dd id="g-t-gemini">—</dd><dt>Enhance</dt><dd id="g-t-enh">—</dd><dt>OCR</dt><dd id="g-t-ocr">—</dd></dl></div>
+          <p class="g-error" id="g-error" hidden></p>
+          <div class="recog-actions">
+            <button type="button" class="btn btn-outline" id="g-read" disabled>Analyze photo</button>
+            <button type="button" class="btn btn-primary" id="g-commit" disabled>Check gate &amp; register</button>
+          </div>
+          <div class="decision" id="g-decision" hidden><strong id="g-decision-title"></strong><span id="g-decision-detail"></span></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ---------------- TODAY (admin summary for the current day) ---------------- -->
+    <section class="view page theme-light" data-view="admin">
+      <div class="page-head">
+        <div><div class="eyebrow">Daily Summary</div><h1>Parking Overview</h1><p id="today-date">Live updates every few seconds</p></div>
+        <div class="head-meta">Last updated <strong id="ov-updated">—</strong></div>
+      </div>
+      <div class="demo-banner" data-demo-banner hidden><strong>Sample data</strong> <span data-demo-reason>The parking service is not reachable.</span> Bays, visits and decisions below are illustrative. Sensor status stays live.</div>
+      <div class="veh-hero two">
+        <div class="vstat"><span class="vstat-ico orange" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5"/><path d="M4 12h11M11 8l4 4-4 4"/></svg></span>
+          <div><div class="vstat-label">Vehicles entered</div><div class="vstat-value" id="kpi-entries">—</div><div class="vstat-sub" id="kpi-entries-sub">—</div></div></div>
+        <div class="vstat"><span class="vstat-ico purple" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M6 6l12 12"/></svg></span>
+          <div><div class="vstat-label">Entry denied</div><div class="vstat-value" id="kpi-denied">—</div><div class="vstat-sub" id="kpi-denied-sub">—</div></div></div>
+      </div>
+      <div class="navy-grid one">
+        <article class="ncard">
+          <div class="ncard-head"><h3>Cars in and out by hour</h3><span class="ncard-note" id="trend-note"></span></div>
+          <div class="canvas-wrap tall"><canvas id="trend-chart" aria-label="Cars in and out per hour today" role="img"></canvas></div>
+        </article>
+      </div>
+      <div class="navy-grid two">
+        <article class="ncard">
+          <div class="ncard-head"><h3>Parked right now</h3><a class="nlink" href="#/admin/vehicles">History</a></div>
+          <div class="table-wrap"><table class="data-table"><thead><tr><th>Photo</th><th>Plate</th><th>Space</th><th>Since</th></tr></thead><tbody id="today-parked"></tbody></table></div>
+        </article>
+        <article class="ncard">
+          <div class="ncard-head"><h3>Latest gate decisions</h3><a class="nlink" href="#/admin/review">All decisions</a></div>
+          <div class="table-wrap"><table class="data-table"><thead><tr><th>Time</th><th>Camera</th><th>Plate</th><th>Decision</th></tr></thead><tbody id="activity-body"></tbody></table></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ---------------- HISTORY (all-time statistics + any single day) ---------------- -->
+    <section class="view page theme-light" data-view="admin/vehicles">
+      <div class="page-head">
+        <div><div class="eyebrow">Records &amp; statistics</div><h1>History</h1><p>See the overall trends, or pick a day to see exactly what happened</p></div>
+      </div>
+      <div class="demo-banner" data-demo-banner hidden><strong>Sample data</strong> <span data-demo-reason>The parking service is not reachable.</span></div>
+      <div class="hist-bar">
+        <div class="seg dark" id="hist-scope"><button type="button" class="on" data-scope="all">All time</button><button type="button" data-scope="day">One day</button></div>
+        <div class="day-pick" id="day-pick" hidden>
+          <button type="button" class="nbtn" id="day-prev" aria-label="Previous day">‹</button>
+          <input type="date" id="day-input" aria-label="Choose a day">
+          <button type="button" class="nbtn" id="day-next" aria-label="Next day">›</button>
+          <button type="button" class="nbtn" id="day-today">Today</button>
+        </div>
+        <span class="hist-scope-note" id="hist-note"></span>
+      </div>
+      <div class="veh-hero">
+        <div class="vstat"><span class="vstat-ico blue" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 11l1.6-4.2A2 2 0 0 1 8.5 5.5h7a2 2 0 0 1 1.9 1.3L19 11"/><rect x="3" y="11" width="18" height="6.5" rx="2"/><path d="M6.5 17.5v2M17.5 17.5v2"/></svg></span>
+          <div><div class="vstat-label">Visits</div><div class="vstat-value" id="h-visits">—</div><div class="vstat-sub" id="h-visits-sub">—</div></div></div>
+        <div class="vstat"><span class="vstat-ico orange" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span>
+          <div><div class="vstat-label" id="h-peak-label">Busiest day</div><div class="vstat-value small" id="h-peak">—</div><div class="vstat-sub" id="h-peak-sub">—</div></div></div>
+        <div class="vstat"><span class="vstat-ico purple" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span>
+          <div><div class="vstat-label">Average parking time</div><div class="vstat-value" id="h-avg">—</div><div class="vstat-sub" id="h-avg-sub">Completed visits</div></div></div>
+        <div class="vstat"><span class="vstat-ico green" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.6-3.4 8.3-8 9-4.6-.7-8-4.4-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg></span>
+          <div><div class="vstat-label">Let in at the gate</div><div class="vstat-value" id="h-rate">—</div><div class="vstat-sub" id="h-rate-sub">—</div></div></div>
+      </div>
+      <div class="navy-grid hist">
+        <article class="ncard">
+          <div class="ncard-head"><h3 id="h-chart-title">Visits per day</h3><span class="ncard-note" id="h-chart-note"></span></div>
+          <div class="canvas-wrap tall"><canvas id="hist-chart" aria-label="Visits over time" role="img"></canvas></div>
+        </article>
+        <article class="ncard">
+          <div class="ncard-head"><h3>Vehicle types</h3></div>
+          <div id="h-types" class="ntbars"></div>
+          <h4 class="nsub">Most used spaces</h4><div id="h-bays" class="ntbars"></div>
+        </article>
+      </div>
+      <article class="ncard">
+        <div class="ncard-head"><h3 id="log-title">Visit log</h3><button type="button" class="nbtn" id="rec-export">Export CSV</button></div>
+        <div class="toolbar dark">
+          <div class="seg dark" id="rec-seg"><button type="button" class="on" data-status="">All <span id="cnt-all">0</span></button><button type="button" data-status="still_in">Parked <span id="cnt-in">0</span></button><button type="button" data-status="left">Left <span id="cnt-left">0</span></button></div>
+          <label class="field">License plate <input id="rec-q" type="search" placeholder="Search plate"></label>
+          <label class="field">Vehicle type <select id="rec-type"><option value="">All types</option><option value="car">Normal car</option><option value="sport">Sport car</option></select></label>
+        </div>
+        <div class="table-wrap"><table class="data-table"><thead><tr><th>Photo</th><th>Plate</th><th>Type</th><th>Space</th><th>Came in</th><th>Left</th><th>Parked for</th><th>Status</th><th>Photos</th></tr></thead><tbody id="rec-body"></tbody></table></div>
+        <div class="pager dark"><span id="rec-info"></span><div><button type="button" class="nbtn" id="rec-prev">Previous</button><button type="button" class="nbtn" id="rec-next">Next</button></div></div>
+      </article>
+          <article class="card sensor-history">
+      <div class="section-heading history-heading"><h2 id="history-heading">Sensor history</h2>
+        <div class="controls"><label>Data source <select id="history-source"><option value="local">Local</option><option value="cloud">Cloud</option></select></label><button type="button" class="btn btn-small" id="history-refresh">Refresh</button><label>Time range <select id="range"><option value="5">Last 5 minutes</option><option value="30" selected>Last 30 minutes</option><option value="60">Last hour</option><option value="1440">Last 24 hours</option><option value="10080">Last 7 days</option><option value="43200" id="cloud-range" hidden disabled>Last 30 days (cloud)</option></select></label></div>
+      </div>
+      <p id="history-status" class="helper">Loading history…</p>
+      <div class="chart-grid">
+        <article class="card chart-card"><h3>U1 / U2 distance <span>cm</span></h3><div class="canvas-wrap"><canvas id="distance-chart" aria-label="U1 and U2 distance history" role="img"></canvas></div></article>
+        <article class="card chart-card"><h3>Temperature &amp; humidity <span>°C / %</span></h3><div class="canvas-wrap"><canvas id="environment-chart" aria-label="Temperature and humidity history" role="img"></canvas></div></article>
+        <article class="card chart-card"><h3>Ambient light <span>raw ADC</span></h3><div class="canvas-wrap"><canvas id="light-chart" aria-label="Light history" role="img"></canvas></div></article>
+        <article class="card chart-card"><h3>Gas · uncalibrated <span>raw ADC</span></h3><div class="canvas-wrap"><canvas id="gas-chart" aria-label="Uncalibrated gas raw ADC history" role="img"></canvas></div></article>
+        <article class="card chart-card"><h3>Simulated arrivals / passages <span>counts since controller boot</span></h3><div class="canvas-wrap"><canvas id="counts-chart" aria-label="Arrival and completed passage counters" role="img"></canvas></div></article>
+        <article class="card chart-card"><h3>Vibration transitions <span>sampled · not calibrated events</span></h3><div class="canvas-wrap"><canvas id="vibration-chart" aria-label="Vibration transition counter history" role="img"></canvas></div></article>
+      </div>
+      </article>
+    </section>
+
+    <!-- ---------------- GATE DECISIONS ---------------- -->
+    <section class="view page" data-view="admin/review">
+      <div class="page-head"><div><div class="eyebrow">Recognition</div><h1>Gate decisions</h1><p>Every entry / exit decision with its archived photo · simulated gate</p></div></div>
+      <div class="demo-banner" data-demo-banner hidden><strong>Sample data</strong> <span data-demo-reason>The parking service is not reachable.</span></div>
+      <div class="toolbar plain"><div class="seg" id="dec-seg"><button type="button" class="on" data-dec="denied">Denied</button><button type="button" data-dec="approved">Approved</button><button type="button" data-dec="">All</button></div><span class="spacer"></span><a class="btn btn-small btn-outline" href="#/gate">Go to gate operation</a></div>
+      <div class="review-grid" id="review-grid"></div>
+    </section>
+
+    <!-- ---------------- SLOTS ---------------- -->
+    <section class="view page theme-light" data-view="admin/slots">
+      <div class="page-head"><div><div class="eyebrow">Parking lot management</div><h1>Parking spaces</h1><p>Live status of every VIP and normal parking space</p></div></div>
+      <div class="demo-banner" data-demo-banner hidden><strong>Sample data</strong> <span data-demo-reason>The parking service is not reachable.</span></div>
+      <div class="lot">
+        <div class="lot-row-label">VIP · Sport cars</div>
+        <div class="lot-bays five" id="lot-vip"></div>
+        <div class="lot-row-label">NORMAL · Normal cars</div>
+        <div class="lot-bays five" id="lot-normal"></div>
+      </div>
+    </section>
+
+    <!-- ---------------- DEVICES ---------------- -->
+    <section class="view page" data-view="admin/devices">
+      <div class="page-head"><div><div class="eyebrow">System management</div><h1>Devices &amp; services</h1><p>Live connection state of every component</p></div></div>
+      <div class="device-grid" id="device-grid"></div>
+      <article class="card">
+        <div class="card-head"><h3>MQTT topics <em class="live-tag">live</em></h3><span class="sub-note" id="topic-note">Mosquitto · TCP 1883 · authenticated</span></div>
+        <div class="table-wrap"><table class="data-table"><thead><tr><th>Topic</th><th>Publisher</th><th>Carries</th><th>Last message</th><th>Status</th></tr></thead>
+          <tbody id="topic-body"></tbody></table></div>
+        <p class="helper topic-foot" id="topic-foot"></p>
+      </article>
+    </section>
+  </div>
+</div>
+<div class="lightbox" id="lightbox" hidden>
+  <div class="lb-panel" role="dialog" aria-modal="true" aria-labelledby="lb-title">
+    <div class="lb-head"><div><strong id="lb-title">Photo</strong><span id="lb-sub"></span></div><button type="button" class="lb-close" id="lb-close" aria-label="Close photo">×</button></div>
+    <div class="lb-tabs seg" id="lb-tabs"></div>
+    <div class="lb-frame"><img id="lb-img" alt=""><span id="lb-empty" hidden>No photo for this moment</span></div>
+    <div class="lb-foot"><span id="lb-meta"></span><a id="lb-full" href="#" target="_blank" rel="noopener">Open full size ↗</a></div>
+  </div>
+</div>
+</body>
+</html>

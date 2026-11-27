@@ -76,3 +76,95 @@ class WebTests(unittest.TestCase):
         self.assertEqual(client.get('/api/history',headers=self.headers).status_code,200)
 
 if __name__=="__main__":unittest.main()
+
+
+class ParkingProxyTests(unittest.TestCase):
+    def setUp(self):
+        self.env=patch.dict(os.environ,{"DASHBOARD_USERNAME":"demo","DASHBOARD_PASSWORD":"test-only-password","PARKING_API_URL":"http://127.0.0.1:9"})
+        self.env.start()
+        self.client=create_app(lambda:{"mqtt_connected":True,"storage_connected":True},Queries(),"sensor_test","parking").test_client()
+        self.headers={"Authorization":"Basic "+base64.b64encode(b"demo:test-only-password").decode()}
+    def tearDown(self):self.env.stop()
+
+    def test_requires_auth(self):
+        for path in ("/api/parking/status","/api/parking/history","/api/parking/media/00000000-0000-0000-0000-000000000000"):
+            self.assertEqual(self.client.get(path).status_code,401)
+
+    def test_unreachable_service_is_503_not_fake_data(self):
+        response=self.client.get("/api/parking/status",headers=self.headers)
+        self.assertEqual(response.status_code,503)
+        self.assertFalse(response.json["available"])
+        self.assertEqual(self.client.get("/api/parking/history",headers=self.headers).status_code,503)
+
+    def test_passthrough_and_validation(self):
+        import parking_proxy
+        payload={"capacity":{"vip":{"total":2,"occupied":1,"available":1}},"spaces":[]}
+        with patch.object(parking_proxy,"status",return_value=payload):
+            self.assertEqual(self.client.get("/api/parking/status",headers=self.headers).json,payload)
+        with patch.object(parking_proxy,"history",return_value={"events":[],"sessions":[]}) as history:
+            self.assertEqual(self.client.get("/api/parking/history?limit=20",headers=self.headers).status_code,200)
+            history.assert_called_once_with(20)
+        self.assertEqual(self.client.get("/api/parking/history?limit=101",headers=self.headers).status_code,400)
+        self.assertEqual(self.client.get("/api/parking/history?limit=x",headers=self.headers).status_code,400)
+        self.assertEqual(self.client.get("/api/parking/media/../../etc",headers=self.headers).status_code,404)
+        with patch.object(parking_proxy,"media",return_value=b"\xff\xd8jpeg"):
+            r=self.client.get("/api/parking/media/00000000-0000-0000-0000-000000000000",headers=self.headers)
+            self.assertEqual((r.status_code,r.mimetype),(200,"image/jpeg"))
+
+    def test_rejects_bad_base_url(self):
+        import parking_proxy
+        with patch.dict(os.environ,{"PARKING_API_URL":"file:///etc/passwd"}):
+            with self.assertRaises(parking_proxy.ParkingUnavailable):
+                parking_proxy.base_url()
+
+    def test_gate_operation_routes_validate_before_forwarding(self):
+        import io
+        import parking_proxy
+        h=self.headers
+        self.assertEqual(self.client.get("/api/camera/frame?camera=side",headers=h).status_code,400)
+        jpeg=(io.BytesIO(b"\xff\xd8test"),"c.jpg","image/jpeg")
+        bad=[{"camera":"side","image":jpeg},{"camera":"entrance","plate_bbox":"1,2,3","image":jpeg},
+             {"camera":"entrance","previous_observation_id":"nope","image":jpeg},{"camera":"entrance"}]
+        for form in bad:
+            form={k:((io.BytesIO(b"\xff\xd8test"),"c.jpg","image/jpeg") if k=="image" else v) for k,v in form.items()}
+            self.assertEqual(self.client.post("/api/parking/analyze",data=form,headers=h,content_type="multipart/form-data").status_code,400)
+        with patch.object(parking_proxy,"analyze",return_value={"observation_id":"x","eligible":True}) as analyze:
+            r=self.client.post("/api/parking/analyze",headers=h,content_type="multipart/form-data",
+                data={"camera":"exit","plate_bbox":"10,20,30,40","image":(io.BytesIO(b"\xff\xd8"+b"x"*20000),"c.jpg","image/jpeg")})
+            self.assertEqual(r.status_code,200)
+            self.assertEqual(analyze.call_args.args[2:],("exit","10,20,30,40",None))
+        self.assertEqual(self.client.post("/api/parking/commit",json={"observation_id":"bad","request_id":"r"},headers=h).status_code,400)
+        oid="00000000-0000-0000-0000-000000000001"
+        with patch.object(parking_proxy,"commit",side_effect=parking_proxy.ParkingUnavailable("Request ID was already used",409)):
+            r=self.client.post("/api/parking/commit",json={"observation_id":oid,"request_id":oid},headers=h)
+            self.assertEqual((r.status_code,r.json["error"]),(409,"Request ID was already used"))
+        # other routes keep the 4 KB body limit
+        self.assertEqual(self.client.post("/api/parking/commit",data=b"x"*5000,headers=h,content_type="application/json").status_code,413)
+
+    def test_unreachable_camera_is_503(self):
+        r=self.client.get("/api/camera/frame?camera=entrance",headers=self.headers)
+        self.assertEqual(r.status_code,503)
+
+    def test_camera_stream_relays_and_allows_one_viewer_per_camera(self):
+        import io
+        import parking_proxy
+        h=self.headers
+        self.assertEqual(self.client.get("/api/camera/stream?camera=side",headers=h).status_code,400)
+        self.assertEqual(self.client.get("/api/camera/stream?camera=entrance").status_code,401)
+        body=b"--frame\r\nContent-Type: image/jpeg\r\n\r\n\xff\xd8x\r\n--frame--\r\n"
+        ctype="multipart/x-mixed-replace; boundary=frame"
+        with patch.object(parking_proxy,"camera_stream",side_effect=lambda c:(ctype,io.BufferedReader(io.BytesIO(body)))):
+            self.assertFalse(self.client.get("/api/camera/stream?camera=entrance&probe=1",headers=h).json["busy"])
+            first=self.client.get("/api/camera/stream?camera=entrance",headers=h,buffered=False)
+            self.assertTrue(self.client.get("/api/camera/stream?camera=entrance&probe=1",headers=h).json["busy"])
+            self.assertEqual(first.headers["Content-Type"],ctype)
+            second=self.client.get("/api/camera/stream?camera=entrance",headers=h)
+            self.assertEqual(second.status_code,409)
+            self.assertEqual(self.client.get("/api/camera/stream?camera=exit",headers=h,buffered=True).data,body)
+            self.assertEqual(b"".join(first.response),body); first.close()
+            again=self.client.get("/api/camera/stream?camera=entrance",headers=h,buffered=True)
+            self.assertEqual(again.status_code,200)
+        with patch.object(parking_proxy,"camera_stream",side_effect=parking_proxy.ParkingUnavailable("Camera unavailable",502)):
+            r=self.client.get("/api/camera/stream?camera=exit",headers=h)
+            self.assertEqual(r.status_code,502)
+            self.assertEqual(self.client.get("/api/camera/stream?camera=exit",headers=h).status_code,502)  # slot released after failure
