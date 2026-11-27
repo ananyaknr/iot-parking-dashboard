@@ -24,8 +24,9 @@ disconnected and manual/automatic physical output disabled. Final build: 20,178
 bytes flash, 1,450 bytes static RAM, 598 bytes remaining. USB diagnostics found
 the LCD (also visually confirmed by owner), vibration input high at rest, both
 ultrasonic readings no echo, and no UART session; serial continuity was unstable.
-The reconnected unchanged ESP32 briefly delivered environmental/cloud samples,
-but sustained freshness has not passed. Both native dashboard
+The unchanged ESP32 resumed fresh environmental telemetry on both dashboards
+after the owner's power check, and cloud upload counters advanced. U1 reads
+about 8–10 cm; U2 no echo and the missing UART session remain blockers. Both native dashboard
 APIs are up with broker/database connected, but fresh hardware/UART/cloud
 acceptance remains pending. Existing local environmental/gate and isolated cloud
 history retrieval passed. ESP32 source/firmware is unchanged.

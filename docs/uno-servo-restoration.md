@@ -129,6 +129,15 @@ library was added to the local toolchain; no heavyweight dependency or ESP32
 source change was needed. Old Python/cloud/browser regression evidence is reused
 because those implementations were unchanged.
 
+Latest check after owner verified power/connections and placed targets around
+10 cm: at 07:45:42 UTC ESP32 environment was fresh/valid on both dashboards;
+cloud counters reached 32 production/31 isolated uploads, with 3/4 pending.
+UNO read U1=8.3 then 9.8 cm; U2 remained no echo, UART_SESSION=0, LCD=1,
+rest vibration unchanged. Environment delivery resumed at this checkpoint;
+U2 and bidirectional UART remain blocked. A 10 cm target is valid detection,
+not clearance; limited bench space does not justify lowering the 18 cm
+clearance threshold or treating no echo as clear.
+
 ## Supervised calibration after suitable power confirmation
 
 1. Keep servo disconnected until the owner confirms suitable regulated external
