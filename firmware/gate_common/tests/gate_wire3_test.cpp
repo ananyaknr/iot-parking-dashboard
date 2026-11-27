@@ -11,5 +11,9 @@ int main() {
   assert(gatewire3::telemetry(good,t));assert(t.phase==2 && t.lane==1 && t.cycle==1);
   char bad[]="G3|0123456789abcdef0123456789abcdef|10000|10.0|null|detected|clear|2|1|1|1|0|2|5000|9900";
   assert(!gatewire3::telemetry(bad,t));
+  char automatic[]="A3|0123456789abcdef0123456789abcdef|18000|25.0|25.0|clear|clear|1|0|1|1|0|16|5000|9900";
+  assert(gatewire3::telemetry(automatic,t) && t.mode=='A' && t.reason==16);
+  char physical[]="P3|0123456789abcdef0123456789abcdef|18000|25.0|25.0|clear|clear|1|0|1|1|0|16|5000|9900";
+  assert(gatewire3::telemetry(physical,t) && t.mode=='P');
   puts("PASS G3: wire schema, sportcar, printable ASCII encoding, invalid bytes, expiry/wrap");
 }

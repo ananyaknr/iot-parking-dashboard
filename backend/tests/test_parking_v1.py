@@ -119,6 +119,24 @@ class ParkingTests(unittest.TestCase):
         self.assertEqual(sum(t==CONTROL for t,_ in self.sent),count)
         self.assertFalse(any(m['passage_confirmed'] for t,m in self.sent if t==FEEDBACK))
 
+    def test_automatic_close_is_review_never_passage_and_physical_rejected(self):
+        self.t.update(mode='entrance_exit_auto_sim',uptime_ms=11000,phase=3,reason=5)
+        self.bridge.receive(TELEMETRY,json.dumps(self.t))
+        self.t.update(uptime_ms=17000,phase=4,reason=6,u1_distance_cm=25.,u1_state='clear')
+        self.bridge.receive(TELEMETRY,json.dumps(self.t))
+        self.t.update(uptime_ms=18000,phase=1,lane=0,reason=16)
+        self.bridge.receive(TELEMETRY,json.dumps(self.t));self.bridge.tick()
+        feedback=[m for t,m in self.sent if t==FEEDBACK][-1]
+        self.assertEqual(feedback['state'],'hold')
+        self.assertFalse(feedback['passage_confirmed'])
+        self.assertEqual(feedback['arrival_id'],self.arrival['arrival_id'])
+        # Even an erroneous legacy completion reason cannot confirm automatic passage.
+        self.t.update(uptime_ms=19000,reason=13)
+        self.bridge.receive(TELEMETRY,json.dumps(self.t));self.bridge.tick()
+        self.assertFalse(any(m['passage_confirmed'] for t,m in self.sent if t==FEEDBACK))
+        with self.assertRaises(ValueError):
+            self.bridge.receive(TELEMETRY,json.dumps(dict(self.t,mode='entrance_exit_auto_physical',servo_enabled=True)))
+
     def test_unverifiable_clock_and_wrong_feedback_correlation(self):
         self.bridge.clock_verified=lambda:False
         with self.assertRaises(ValueError):self.send(self.cmd)

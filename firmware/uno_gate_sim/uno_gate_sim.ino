@@ -4,12 +4,13 @@
 #include <LiquidCrystal_I2C.h>
 #include <GateCommon.h>
 #include <GateBench.h>
+#include <GateActuator.h>
 #include <GateWire3.h>
 #include <Servo.h>
 #include <util/atomic.h>
 using namespace gatev2;
-// Default restoration build NEVER attaches D9. Automatic physical output has
-// no code path; a later supervised manual build requires this explicit opt-in.
+// Default build never attaches D9. Automatic physical output is a separate,
+// explicit build opt-in, not a remote command or runtime arming operation.
 #ifndef GATE_MANUAL_SERVO_ENABLED
 #define GATE_MANUAL_SERVO_ENABLED 0
 #endif
@@ -19,10 +20,26 @@ using namespace gatev2;
 #if GATE_MANUAL_SERVO_ENABLED && GATE_ENTRANCE_EXIT_ENABLED
 #error Confirmed entrance-exit simulation must not enable physical servo output
 #endif
+#ifndef GATE_AUTOMATIC_ENABLED
+#define GATE_AUTOMATIC_ENABLED 0
+#endif
+#ifndef GATE_PHYSICAL_ENABLED
+#define GATE_PHYSICAL_ENABLED 0
+#endif
+#ifndef GATE_OPEN_ANGLE
+#define GATE_OPEN_ANGLE 80
+#endif
+#ifndef GATE_CLOSED_ANGLE
+#define GATE_CLOSED_ANGLE 10
+#endif
+#if GATE_PHYSICAL_ENABLED && (!GATE_AUTOMATIC_ENABLED || !GATE_ENTRANCE_EXIT_ENABLED || GATE_MANUAL_SERVO_ENABLED)
+#error Physical automatic build requires automatic mode and separate manual driver disabled
+#endif
+static_assert(GATE_OPEN_ANGLE>=5 && GATE_OPEN_ANGLE<=175 && GATE_CLOSED_ANGLE>=5 && GATE_CLOSED_ANGLE<=175 && GATE_OPEN_ANGLE!=GATE_CLOSED_ANGLE,"Invalid angles");
 Servo barrier;
 gatebench::Controller bench;
 bool localBench=GATE_ENTRANCE_EXIT_ENABLED,servoArmed=false,manualMovement=false;
-uint8_t closedAngle=10,openAngle=80;
+uint8_t closedAngle=GATE_CLOSED_ANGLE,openAngle=GATE_OPEN_ANGLE;
 const uint8_t U1_TRIG=2,U1_ECHO=3,U2_TRIG=4,U2_ECHO=5,VIB=6;
 const bool INTEGRATED_MODE=false; // Enable only after teammate contract agreement.
 SoftwareSerial gateway(10,11);
@@ -72,7 +89,7 @@ const __FlashStringHelper* benchReason() {
     case gatebench::R_EXIT:return F("exit_local");
     case gatebench::R_MANUAL:return F("manual_open");
     case gatebench::R_AUTHORIZED:return F("bench_authorized");
-    case gatebench::R_CLOSING:return F("supervised_close");
+    case gatebench::R_CLOSING:return F("closing_command");
     case gatebench::R_UNKNOWN:return F("sensor_unknown");
     case gatebench::R_CONFLICT:return F("competing_lanes");
     case gatebench::R_TIMEOUT:return F("cycle_timeout");
@@ -82,13 +99,14 @@ const __FlashStringHelper* benchReason() {
     case gatebench::R_COMPLETE:return F("bench_completed");
     case gatebench::R_RESET:return F("reset");
     case gatebench::R_STOP:return F("operator_stop");
+    case gatebench::R_UNVERIFIED:return F("passage_review");
     default:return F("boot");
   }
 }
 void showState() {
   if(displayOverride) return;
   if(localBench) {
-    rowFlash(0,F("LOCAL BENCH ONLY"));rowFlash(1,benchReason());return;
+    rowFlash(0,GATE_AUTOMATIC_ENABLED?(GATE_PHYSICAL_ENABLED?F("AUTO UNMEASURED"):F("AUTO SIMULATION")):F("LOCAL BENCH ONLY"));rowFlash(1,benchReason());return;
   }
   if(machine.state==CLOSED) rowFlash(0,F("WAITING FOR CAR"));
   else if(machine.state==AUTH_WAIT) rowFlash(0,F("READING PLATE..."));
@@ -114,8 +132,8 @@ void ack(const char* id,const char* result,const char* kind) {
 void benchReport() {
   Serial.print(F("BENCH3|entrance_exit|"));Serial.print(bench.cycle);
   Serial.print('|');Serial.print(uint8_t(bench.lane));Serial.print('|');Serial.print(uint8_t(bench.phase));
-  Serial.print('|');Serial.print(benchReason());Serial.print(F("|servo="));Serial.print(servoArmed?1:0);
-  Serial.print(F("|automatic_physical=0|minimum_ms="));Serial.println(bench.minimumOpenMs);
+  Serial.print('|');Serial.print(benchReason());Serial.print(F("|servo="));Serial.print(barrier.attached()?1:0);
+  Serial.print(F("|automatic_physical="));Serial.print(GATE_PHYSICAL_ENABLED);Serial.print(F("|position=unmeasured|minimum_ms="));Serial.println(bench.minimumOpenMs);
 }
 bool localCommand(char* text) {
   if(!strcmp_P(text,PSTR("SENSORS?"))) {
@@ -264,7 +282,7 @@ template<size_t N> void readCommands(Stream& port,Frame<N>& frame,bool usb) {
 }
 void reportTo(Print& out,uint8_t raw,uint32_t transitions) {
   if(localBench) {
-    out.print(F("G3|"));out.print(bootId);out.print('|');out.print(millis());out.print('|');
+    out.print(GATE_PHYSICAL_ENABLED?F("P3|"):GATE_AUTOMATIC_ENABLED?F("A3|"):F("G3|"));out.print(bootId);out.print('|');out.print(millis());out.print('|');
     if(machine.u1.cm<0) out.print(F("null"));else out.print(machine.u1.cm,1);out.print('|');
     if(machine.u2.cm<0) out.print(F("null"));else out.print(machine.u2.cm,1);out.print('|');
     out.print(zoneName(machine.u1.visible()));out.print('|');out.print(zoneName(machine.u2.visible()));out.print('|');
@@ -286,7 +304,20 @@ void report() {
   reportTo(gateway,raw,transitions);reportTo(Serial,raw,transitions);
 }
 
+void automaticActuator() {
+#if GATE_PHYSICAL_ENABLED
+  static gatebench::Actuator policy;
+  gatebench::Motion motion=policy.update(bench.phase);
+  if(motion==gatebench::MOVE_OPEN) {
+    // Retain the previously verified 1000–2000 us SG90 pulse mapping.
+    barrier.writeMicroseconds(1000+uint16_t(openAngle)*1000/180);
+    if(!barrier.attached()) barrier.attach(9,1000,2000);
+  } else if(motion==gatebench::MOVE_CLOSE && barrier.attached()) barrier.write(closedAngle);
+  else if(motion==gatebench::REOPEN && barrier.attached()) barrier.write(openAngle);
+#endif
+}
 void setup() {
+  bench.automatic=GATE_AUTOMATIC_ENABLED;
   Serial.begin(115200);gateway.begin(19200);gateway.listen();
   pinMode(U1_TRIG,OUTPUT);pinMode(U1_ECHO,INPUT);pinMode(U2_TRIG,OUTPUT);pinMode(U2_ECHO,INPUT);
   digitalWrite(U1_TRIG,LOW);digitalWrite(U2_TRIG,LOW);pinMode(VIB,INPUT_PULLUP);
@@ -302,7 +333,9 @@ void setup() {
   }
   if(lcd) {lcd->init();lcd->backlight();}else Serial.println(F("LCD_NOT_FOUND"));
   ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {TCCR2A=_BV(WGM21);TCCR2B=_BV(CS22);OCR2A=249;TIMSK2|=_BV(OCIE2A);}
-  showState();Serial.println(F("INTEGRATED_RESTORED; SERVO DETACHED; AUTO PHYSICAL DISABLED"));
+  showState();Serial.println(F("INTEGRATED_RESTORED; SERVO DETACHED; POSITION UNMEASURED"));
+  Serial.print(F("AUTOMATIC_BUILD|"));Serial.println(GATE_AUTOMATIC_ENABLED);
+  Serial.print(F("PHYSICAL_BUILD|"));Serial.println(GATE_PHYSICAL_ENABLED);
   Serial.print(F("MANUAL_SERVO_BUILD|"));Serial.println(GATE_MANUAL_SERVO_ENABLED);
   Serial.print(F("CYCLE_TIMEOUT_MS|"));Serial.println(machine.cycleTimeoutMs);
 }
@@ -322,6 +355,7 @@ void loop() {
   if(localBench) {
     gatebench::Phase before=bench.phase;
     bench.update(machine.u1,machine.u2,millis());
+    automaticActuator(); // start movement before potentially slow UART reporting
     if(before!=bench.phase) {
       if(bench.phase==gatebench::HOLD || bench.phase==gatebench::CLOSED) displayOverride=false;
       if(bench.phase==gatebench::HOLD && servoArmed && manualMovement) {
@@ -333,6 +367,7 @@ void loop() {
       if(machine.ready) {report();lastReport=millis();}
     }
   } else machine.update(millis());
+  automaticActuator();
   if(displayOverride && (machine.arrivals!=displayArrival || machine.eventSeq!=displayEvent
        || uint32_t(millis()-displayAt)>=15000)) {displayOverride=false;showState();}
   if(displayEvent!=machine.eventSeq) {displayEvent=machine.eventSeq;displayOverride=false;showState();}

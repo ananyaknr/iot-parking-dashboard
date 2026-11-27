@@ -24,7 +24,7 @@ bool receiveV3(char* frame) {
     }
     return true;
   }
-  if(strncmp(frame,"G3|",3)) return false;
+  if(strncmp(frame,"G3|",3) && strncmp(frame,"A3|",3) && strncmp(frame,"P3|",3)) return false;
   gatewire3::Telemetry t;
   if(!gatewire3::telemetry(frame,t)) {Serial.println("G3_REJECTED");return true;}
   if(!activeBoot[0]) strcpy(activeBoot,t.boot);
@@ -36,14 +36,14 @@ bool receiveV3(char* frame) {
   }
   v3Latest=t;v3Active=true;sessionPending=false;lastUnoReceived=millis();++uartValid;
   JsonDocument d;
-  d["schema_version"]=3;d["mode"]="entrance_exit_sim";d["boot_id"]=t.boot;d["gateway_boot_id"]=gatewayBoot;
+  d["schema_version"]=3;d["mode"]=t.mode=='P'?"entrance_exit_auto_physical":t.mode=='A'?"entrance_exit_auto_sim":"entrance_exit_sim";d["boot_id"]=t.boot;d["gateway_boot_id"]=gatewayBoot;
   d["uptime_ms"]=t.uptime;d["gateway_uptime_ms"]=millis();
   if(t.u1<0)d["u1_distance_cm"]=nullptr;else d["u1_distance_cm"]=t.u1;
   if(t.u2<0)d["u2_distance_cm"]=nullptr;else d["u2_distance_cm"]=t.u2;
   d["u1_state"]=gatev2::zoneName(t.z1);d["u2_state"]=gatev2::zoneName(t.z2);
   d["phase"]=t.phase;d["lane"]=t.lane;d["cycle"]=t.cycle;
   d["vibration_raw"]=t.raw;d["vibration_transition_count"]=t.vibration;d["reason"]=t.reason;
-  d["minimum_open_ms"]=t.minimum;d["started_at_ms"]=t.started;d["servo_enabled"]=false;
+  d["minimum_open_ms"]=t.minimum;d["started_at_ms"]=t.started;d["servo_enabled"]=t.mode=='P';
   char payload[1024];if(measureJson(d)>=sizeof(payload))return true;
   serializeJson(d,payload,sizeof(payload));enqueue(false,payload,false,false,1);
   return true;

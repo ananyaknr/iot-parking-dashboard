@@ -1,5 +1,12 @@
 # Confirmed simulation interface and G3 implementation
 
+The opt-in [automatic gate extension](autonomous-gate.md) preserves these five
+topic envelopes. A3 identifies autonomous simulation; P3 identifies a physical
+build and is rejected by the simulation adapter. Automatic safe close sends
+unconfirmed `hold` feedback (controller reason 16), never confirmed completion.
+Physical-mode API semantics remain pending agreement; the confirmed simulation
+contract below is unchanged.
+
 Owner relayed teammate confirmation on 2026-11-27. This supersedes the earlier
 unconfirmed six-topic proposal for the implemented simulation. No teammate
 repository changes, session creation or Supabase writes are performed here.

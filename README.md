@@ -2,6 +2,11 @@
 
 ## Sensor and gate integration handoff
 
+Automatic gate operation is prepared on `feature/autonomous-gate`, with physical
+output disabled by default. See [build modes, passage limitations and hardware
+acceptance](docs/autonomous-gate.md). Software checks do not establish physical
+acceptance; automatic closure never claims confirmed passage.
+
 For the gateway's intermittent MQTT transport failure, see the
 [diagnosis, bounded reconnect repair and rollback](docs/esp32-mqtt-recovery.md).
 The dashboard distinguishes missing telemetry from an ultrasonic no-echo;

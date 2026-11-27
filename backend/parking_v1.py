@@ -62,8 +62,9 @@ class ParkingV1:
         arrival=self.db.execute('SELECT payload FROM arrivals WHERE id=?',(aid,)).fetchone()
         if not arrival:return
         state={3:'opening',5:'hold'}.get(m['phase'])
+        if m['phase']==1 and m['reason']==16:state='hold'
         # R_COMPLETE is emitted only after explicit CONFIRM, safe CLOSE and closing.
-        if (m['phase']==1 and m['reason']==13 and old and old['phase']==4 and old['cycle']==m['cycle']
+        if (m['mode']=='entrance_exit_sim' and m['phase']==1 and m['reason']==13 and old and old['phase']==4 and old['cycle']==m['cycle']
             and old['boot_id']==m['boot_id'] and old['gateway_boot_id']==m['gateway_boot_id']):state='completed'
         if not state:return
         transition=f"{aid}:{m['phase']}:{m['reason']}"
@@ -72,7 +73,7 @@ class ParkingV1:
         payload={'schema_version':1,'event_id':uuid.uuid4().hex,'producer_id':'sensor-gateway',
           'occurred_at':self.clock().isoformat(),'arrival_id':aid,'command_id':command[0] if command else None,
           'direction':json.loads(arrival[0])['direction'],'state':state,'passage_confirmed':state=='completed',
-          'simulation':True,'reason':None if state=='completed' else 'controller_reason_'+str(m['reason'])}
+          'simulation':True,'reason':None if state=='completed' else 'passage_unverified_safe_close' if m['reason']==16 else 'controller_reason_'+str(m['reason'])}
         self.db.execute('INSERT INTO feedback(id,arrival,transition,payload) VALUES(?,?,?,?)',
                         (payload['event_id'],aid,transition,json.dumps(payload)))
         self.db.commit()
@@ -90,12 +91,12 @@ class ParkingV1:
 
     def telemetry(self,m):
         required={'schema_version','mode','boot_id','gateway_boot_id','uptime_ms','gateway_uptime_ms','u1_distance_cm','u2_distance_cm','u1_state','u2_state','phase','lane','cycle','vibration_raw','vibration_transition_count','reason','minimum_open_ms','started_at_ms','servo_enabled'}
-        if set(m)!=required or m['schema_version']!=3 or type(m['schema_version']) is not int or m['mode']!='entrance_exit_sim' or m['servo_enabled'] is not False:raise ValueError('G3 schema')
+        if set(m)!=required or m['schema_version']!=3 or type(m['schema_version']) is not int or m['mode'] not in ('entrance_exit_sim','entrance_exit_auto_sim') or m['servo_enabled'] is not False:raise ValueError('G3 schema')
         for key in ('boot_id','gateway_boot_id'):
             if not isinstance(m[key],str) or not re.fullmatch('[0-9a-f]{32}',m[key]):raise ValueError('Boot')
         for key in ('uptime_ms','gateway_uptime_ms','cycle','vibration_raw','vibration_transition_count','reason','minimum_open_ms','started_at_ms','phase','lane'):
             if type(m[key]) is not int or not 0<=m[key]<=4294967295:raise ValueError('Unsigned field')
-        if m['phase']>5 or m['lane']>3 or m['reason']>15 or m['vibration_raw']>1 or not 5000<=m['minimum_open_ms']<=60000:raise ValueError('State bounds')
+        if m['phase']>5 or m['lane']>3 or m['reason']>16 or m['vibration_raw']>1 or not 5000<=m['minimum_open_ms']<=60000:raise ValueError('State bounds')
         for z in ('u1','u2'):
             v=m[z+'_distance_cm'];s=m[z+'_state']
             if s not in ('unknown','clear','detected'):raise ValueError('Zone')

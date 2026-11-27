@@ -17,17 +17,17 @@ inline bool lcdDecode(const char* hex,char* out) {
 inline bool vehicle(const char* s) {return !strcmp(s,"car")||!strcmp(s,"sportcar")||!strcmp(s,"supercar");}
 inline bool deadline(uint32_t now,uint32_t end) {int32_t left=int32_t(end-now);return left>0 && left<=20000;}
 struct Telemetry {
-  char boot[33];float u1,u2;gatev2::Zone z1,z2;
+  char mode;char boot[33];float u1,u2;gatev2::Zone z1,z2;
   uint32_t uptime,phase,lane,cycle,raw,vibration,reason,minimum,started;
 };
 inline bool telemetry(char* text,Telemetry& t) {
-  char* f[15];if(gatev2::split(text,f,15)!=15 || strcmp(f[0],"G3") || !gatev2::hex(f[1],32)) return false;
-  strcpy(t.boot,f[1]);
+  char* f[15];if(gatev2::split(text,f,15)!=15 || (strcmp(f[0],"G3") && strcmp(f[0],"A3") && strcmp(f[0],"P3")) || !gatev2::hex(f[1],32)) return false;
+  t.mode=f[0][0];strcpy(t.boot,f[1]);
   if(!gatev2::decimal(f[2],t.uptime)||!gatev2::distance(f[3],t.u1)||!gatev2::distance(f[4],t.u2)
     ||!gatev2::decimal(f[7],t.phase)||!gatev2::decimal(f[8],t.lane)||!gatev2::decimal(f[9],t.cycle)
     ||!gatev2::decimal(f[10],t.raw)||!gatev2::decimal(f[11],t.vibration)||!gatev2::decimal(f[12],t.reason)
     ||!gatev2::decimal(f[13],t.minimum)||!gatev2::decimal(f[14],t.started)
-    ||t.phase>5||t.lane>3||t.raw>1||t.reason>15||t.minimum<5000||t.minimum>60000) return false;
+    ||t.phase>5||t.lane>3||t.raw>1||t.reason>16||t.minimum<5000||t.minimum>60000) return false;
   int a=-1,b=-1;
   for(int z=0;z<=2;++z) {if(!strcmp(f[5],gatev2::zoneName(gatev2::Zone(z)))) a=z;if(!strcmp(f[6],gatev2::zoneName(gatev2::Zone(z)))) b=z;}
   if(a<0||b<0||(t.u1<0&&a!=0)||(t.u2<0&&b!=0)) return false;
