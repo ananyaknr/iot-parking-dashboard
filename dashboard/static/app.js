@@ -45,7 +45,7 @@ const recognition=parking3.recognition?{status:'authorized_simulation',...parkin
 $('recognition-status').textContent=test?'Test recognition · synthetic':(recognition.status||'Not configured').replaceAll('_',' ');
 $('license-plate').textContent=hasResult?recognition.license_plate:'Unavailable';$('vehicle-type').textContent=hasResult?(recognition.vehicle_type||'unknown').toUpperCase():'UNKNOWN';
 $('recognition-time').textContent=recognition.occurred_at?new Date(recognition.occurred_at).toLocaleString():'Unavailable';
-$('recognition-note').textContent=test?'Isolated test result · Not a real recognized vehicle':hasResult?'Original plate text retained; LCD delivery is separate':'Waiting for the agreed teammate interface';
+$('recognition-note').textContent=test?'Isolated test result · Not a real recognized vehicle':hasResult?'Original plate text retained; LCD delivery is separate':'No correlated recognition result received.';
 $('uno-status').textContent='UNO gate · '+(p3?'G3 receiving':usable?'G2 receiving':'Stale / Unknown');$('esp32-status').textContent='ESP32 · '+(e.fresh&&e.payload_valid?'Receiving':'Stale / Unknown');
 $('storage-status').textContent='Storage · '+(d.storage_connected?'Connected':'Unavailable')+' · Backlog '+(d.storage_backlog||0)+' · Dropped '+(d.storage_dropped_points||0);
 $('mqtt-status').textContent='Broker · '+(d.mqtt_connected?'Connected':'Disconnected');$('ingestion-status').textContent='Ingestion · '+(d.ingestion_connected?'Receiving':'Waiting')+' · Rejected '+(d.rejected_messages||0)+' · Queue dropped '+(d.dropped_messages||0);
