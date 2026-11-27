@@ -12,13 +12,17 @@ const P3_CLASS=['unknown','available','pending','available','pending','occupied'
 const P3_REASON=['Boot','Ready','Entrance','Local exit','Manual','Authorized','Closing','Sensor unknown','Conflicting detections','Cycle timeout','Opposite lane','Authorization timeout','Obstruction','Completed','Reset','Stopped'];
 function renderG3(parking3,p3){
   const cm=v=>v===null||v===undefined?'No echo':v+' cm';
+  const zoneText=(state,value)=>`${{clear:'Clear',detected:'Detected',unknown:'No echo / unknown'}[state]||'Unknown'}${value==null?'':' · '+value+' cm'}`;
+  $('legacy-gate-panel').hidden=!!parking3.enabled;
+  $('gate-source-note').hidden=!!parking3.enabled;
+  $('p3-link').textContent=p3?'Connected · UART / MQTT':parking3.enabled?'Stale / waiting':'Use combined dashboard';
   $('parking3-badge').textContent=parking3.enabled?'G3 · isolated simulation · Servo disconnected':'G3 · not enabled on this run';
   $('parking3-status').textContent=p3?(P3_PHASE[p3.phase]||'Unknown'):parking3.enabled?'Waiting for fresh entrance/exit telemetry':'Not enabled';
   $('parking3-status').className='state '+(p3?(P3_CLASS[p3.phase]||'unknown'):'unknown');
   $('parking3-detail').textContent=p3?`Direction: ${['none','entrance','exit','manual'][p3.lane]||'unknown'} · Cycle ${p3.cycle} · U1 ${cm(p3.u1_distance_cm)} · U2 ${cm(p3.u2_distance_cm)} · Minimum ${p3.minimum_open_ms/1000}s · Servo disabled`:'New G3 data stays separate from historical G2 passages';
   $('p3-direction').textContent=p3?(['None','Entrance','Exit','Manual'][p3.lane]||'Unknown'):'—';
   $('p3-cycle').textContent=p3?String(p3.cycle):'—';
-  $('p3-u1').textContent=p3?cm(p3.u1_distance_cm):'—';$('p3-u2').textContent=p3?cm(p3.u2_distance_cm):'—';
+  $('p3-u1').textContent=p3?zoneText(p3.u1_state,p3.u1_distance_cm):'—';$('p3-u2').textContent=p3?zoneText(p3.u2_state,p3.u2_distance_cm):'—';
   $('p3-minimum').textContent=p3?(p3.minimum_open_ms/1000)+' s':'—';
   $('p3-feedback').textContent=parking3.enabled?String(parking3.pending_feedback||0):'—';
   $('parking3-command').textContent=`Command receipt: ${parking3.command_outcome||'none'} · Feedback awaiting receipt: ${parking3.pending_feedback||0} · ${p3?(P3_REASON[p3.reason]||'Unknown reason')+' · ':''}Session matching/release: teammate owned`;
@@ -110,6 +114,7 @@ const TOPIC_ROWS=[['parking3','parking/test/gate/v3/telemetry','UNO entrance/exi
 function renderTopics(){
   const d=latestData;
   $('topic-body').innerHTML=TOPIC_ROWS.map(([key,topic,pub,carries])=>{
+    const legacy=d?.parking3?.enabled&&['gate','uno'].includes(key);
     const s=key==='parking3'&&d?.parking3?{fresh:d.parking3.fresh,payload_valid:d.parking3.fresh}:d&&d.sources?d.sources[key]:null;
     let tag='<span class="tag gray">Unknown</span>',last='—';
     if(s){
@@ -117,6 +122,8 @@ function renderTopics(){
       last=s.last_received_utc?`${fmtTime(s.last_received_utc)} · ${age!=null?age.toFixed(1)+' s ago':''}`:(age!=null?age.toFixed(1)+' s ago':'No message yet');
       tag=s.fresh&&s.payload_valid?'<span class="tag green">Receiving</span>':s.received_recently&&!s.payload_valid?'<span class="tag red">Invalid payload</span>':age!=null?'<span class="tag amber">Stale</span>':'<span class="tag gray">No publisher yet</span>';
     }
+    if(key==='parking3'&&s?.fresh)last='Current G3 telemetry';
+    if(legacy){tag='<span class="tag gray">Inactive legacy schema</span>';last='Current UNO publishes G3 instead';}
     return `<tr><td><code>${topic}</code></td><td>${pub}</td><td>${carries}</td><td>${last}</td><td>${tag}</td></tr>`;}).join('');
   $('topic-note').textContent=d?`Broker ${d.mqtt_connected?'connected':'disconnected'} · Mosquitto · TCP 1883 · authenticated`:'Sensor server unavailable';
   $('topic-foot').textContent=d?`Rejected ${d.rejected_messages||0} · Discarded ${d.discarded_messages||0} · Queue dropped ${d.dropped_messages||0} · updates every 2 s`:'';

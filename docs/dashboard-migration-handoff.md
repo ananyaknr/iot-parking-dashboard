@@ -183,6 +183,30 @@ browser run or new real-image OCR/gate-cycle test was performed in this merge.
 
 The earlier connection preparation below is retained as a separate checkpoint.
 
+### UNO connection display diagnosis
+
+The later owner report that UNO was disconnected was traced to mixed live-schema
+presentation, not a lost UART link. On 8081/5001, G3 telemetry was fresh and the
+UNO uptime advanced in three successive samples. The original 5000 backend has
+G3 disabled; its old `sources.uno` and G2 `sources.gate` have no publisher under
+the current firmware. They must not be interpreted as a disconnected current UNO.
+
+The G3 card now shows an independent **UNO link: Connected · UART / MQTT**,
+sensor state plus distance, and the existing safety-hold reason. Inactive G2
+live cards are hidden on G3 runs, with historical G2 data unchanged. MQTT rows
+label those old schemas inactive. The original 5000 page links to 8081 for G3.
+
+U1 initially had no echo, explaining the latched `sensor_unknown` hold. After
+the owner placed a target it read about 16–17 cm; U2 read about 12.5 cm, meaning
+both detectors were occupied despite the intended U2-clear placement. No reset,
+OPEN, serial-port opening, firmware change or movement was attempted. For a
+supervised reset both sensors must provide valid clear readings beyond 18 cm;
+the connection itself does not require that reset. Servo remains disabled.
+
+[Actual diagnosis receipt](evidence/uno-connection-display.json). Focused Node
+display checks passed for connected/no-echo, stale, legacy and topic states;
+the updated page/assets and fresh G3 were confirmed after service restart.
+
 [Sanitized connection receipt](evidence/dashboard-migration-readiness.json):
 
 - Both proxied streams returned MJPEG with JPEG data, and both fresh snapshots

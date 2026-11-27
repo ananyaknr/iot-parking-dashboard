@@ -112,9 +112,11 @@
       </div>
 
       <div class="section-heading"><h2 id="parking3-heading">Entrance / exit</h2><span class="badge warning" id="parking3-badge">G3 · isolated simulation · Servo disconnected</span></div>
+      <p class="helper" id="gate-source-note" hidden>This original sensor service does not receive G3. Use the <a href="http://127.0.0.1:8081/#/dashboard">combined entrance/exit dashboard</a> for the current UNO.</p>
       <article class="card g3-card" aria-live="polite">
         <div class="g3-main"><div class="card-label">ENTRANCE / EXIT CONTROLLER · G3</div><div id="parking3-status" class="state unknown">Waiting for separate entrance/exit telemetry</div><p id="parking3-detail">No physical movement or session release</p></div>
         <dl class="g3-stats">
+          <div><dt>UNO link</dt><dd id="p3-link">Waiting</dd></div>
           <div><dt>Direction</dt><dd id="p3-direction">—</dd></div>
           <div><dt>Cycle</dt><dd id="p3-cycle">—</dd></div>
           <div><dt>U1 · entrance</dt><dd id="p3-u1">—</dd></div>
@@ -125,6 +127,7 @@
         <p class="g3-command" id="parking3-command">Command receipt unavailable</p>
       </article>
 
+      <div id="legacy-gate-panel">
       <div class="section-heading"><h2 id="gate-heading">Barrier gate · G2 arrival / passage</h2><span class="badge warning">SIMULATION · Servo disconnected</span></div>
       <div class="parking-grid">
         <article class="card slot"><div class="card-label">SIMULATED GATE STATE</div><div id="gate-sim-state" class="state unknown">Unknown</div><div class="slot-detail"><span>Servo</span><strong id="servo-status">Unknown</strong></div><p id="gate-event">Waiting for gate-v2 telemetry</p></article>
@@ -134,6 +137,7 @@
       <div class="sensor-grid gate-counts">
         <article class="card metric"><div class="card-label">ARRIVALS · THIS CONTROLLER BOOT</div><div class="metric-value" id="arrivals">Unknown</div></article>
         <article class="card metric"><div class="card-label">COMPLETED SIMULATED PASSAGES</div><div class="metric-value" id="passages">Unknown</div></article>
+      </div>
       </div>
 
       <div class="section-heading"><h2 id="recognition-heading">Recognition</h2><span id="recognition-status">Not configured</span></div>
