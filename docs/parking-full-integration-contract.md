@@ -1,6 +1,10 @@
 # Entrance/exit integration — proposed v1 extensions
 
 Status: **awaiting teammate confirmation; not an enabled interface**.
+Subsequent owner authorization permits independent UNO restoration/servo and
+local bench preparation while this shared MQTT revision is pending. See
+[actual restoration results](uno-servo-restoration.md). That local implementation
+does not enable this proposed contract or modify teammate persistence.
 Prepared 2026-11-27 for `feature/parking-full-integration`, based on merged
 PR #4 (`8d3b445`). This document proposes exact payloads for review; it does
 not claim to reproduce an existing agreed teammate contract.

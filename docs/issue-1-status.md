@@ -1,5 +1,25 @@
 # Issue 1 implementation and ownership ledger
 
+## Independent UNO restoration — 2026-11-27
+
+Owner explicitly authorized implementation independent of the pending teammate
+contract, restoring the repository integrated sketch after a temporary standalone
+servo diagnostic. SG90 was disconnected by owner before upload. COM7 verified
+upload passed with manual/automatic output disabled. Added standard Servo driver,
+volatile angle/minimum settings and USB supervised manual preparation; separate
+LOCAL controller implements simulated U1 authorization/U2 automatic exit with
+serialized cycles, minimum-open, explicit confirmation and obstruction/timeout
+hold. LOCAL does not masquerade as G2 passage telemetry. ESP32 is unchanged.
+
+Actual builds, essential C++ regressions, USB diagnostics, current dashboard
+freshness limits and calibration/rollback instructions are recorded in
+[the restoration receipt](uno-servo-restoration.md). Both dashboards are running
+with MQTT/storage connected, but live U1/U2 echoes, UART/environment/cloud samples
+and sustained USB continuity have not passed in this run. LCD was discovered and
+vibration was high at rest. Servo external power and combined stability remain
+unverified; no new servo movement was attempted. Shared MQTT agreement and joint
+acceptance remain pending. PR #5 is not ready for merge.
+
 ## Entrance/exit sprint readiness — 2026-11-27
 
 PR #4 is merged at `8d3b445`. Main is synced and
