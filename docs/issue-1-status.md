@@ -1,5 +1,24 @@
 # Issue 1 implementation and ownership ledger
 
+## Entrance/exit sprint readiness — 2026-11-27
+
+PR #4 is merged at `8d3b445`. Main is synced and
+`feature/parking-full-integration` is based on that merge. The owner's new
+U1 entrance / U2 exit workflow supersedes historical arrival/passage and A1/M1
+integration requirements. Historical data is not relabeled. See the
+[exact proposed revision and acceptance checklist](parking-full-integration-contract.md).
+
+Owner approved supervised bench confirmation with simulated movement. Servo
+remains disabled; wiring, services, sensor cloud, firmware and teammate code are
+unchanged. Read-only teammate repository inspection at `1058ed1` found HTTP
+simulation, no active gate MQTT contract, and exit release during simulated
+commit rather than after terminal passage feedback. Exact payload agreement and
+teammate-side matched-exit sequencing remain prerequisites. No new entrance/exit
+implementation, firmware upload or joint live acceptance is claimed.
+
+The historical sections below retain their original dates and scope; references
+to PR #4 being unmerged or U2 being passage are not current sprint status.
+
 ## Current gate v2 update — 2026-11-26
 
 At 22:08 Bangkok the essential **servo-disabled hardware demonstration passed**:

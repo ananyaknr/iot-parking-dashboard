@@ -2,11 +2,18 @@
 
 ## Sensor and gate integration handoff
 
-Development branch: **`feature/gate-hardware-integration`**, tracked by
-[PR #4](https://github.com/ananyaknr/iot-parking-dashboard/pull/4). Sensor cloud
-deployment from PR #3 is merged. Gate integration is a **servo-disabled
-simulation**; physical end-to-end acceptance and production migration are
-separate approval steps. See the [verification ledger](docs/gate-v2-verification.md).
+Current branch: **`feature/parking-full-integration`**, based on merged
+[PR #4](https://github.com/ananyaknr/iot-parking-dashboard/pull/4) at `8d3b445`.
+The new owner workflow is **U1 entrance / U2 exit**, with entrance camera
+authorization and an automatic local exit cycle. Implementation awaits exact
+teammate payload agreement; running firmware still has the historical v2
+arrival/passage semantics described below. See the
+[proposed revised contract and readiness checklist](docs/parking-full-integration-contract.md).
+Supervised bench confirmation with simulated movement is owner-approved;
+servo output remains disabled. No A1/M1 availability feed is required for the
+new integration. Availability, reservations, recognition and sessions belong
+to the teammate. Environmental sensing, native Windows services and sensor
+cloud/history functionality remain preserved.
 
 The 2026-11-26 servo-disabled hardware demonstration passed: bidirectional UART,
 U1 arrival/U2 passage cycle (counts 1/1), vibration response, CAR/SUPERCAR LCD,
@@ -14,7 +21,8 @@ environment readings and actual local/cloud dashboard history. Standalone
 operator guidance uses a 120-second cycle window; integrated authorization
 remains 20 seconds. See [corrected wiring](docs/wiring.md) for the separate
 breadboards and 1 kΩ upper / 2 kΩ lower UART divider. Servo/camera integration,
-calibration and long-duration acceptance remain pending; PR #4 is unmerged.
+calibration and long-duration acceptance remain pending. PR #4 is now merged;
+this historical demonstration does not establish the new entrance/exit workflow.
 
 Implemented in this branch:
 
@@ -38,8 +46,8 @@ Commit or stash your own local changes first, then:
 
 ```powershell
 git fetch origin
-git switch feature/gate-hardware-integration
-git pull --ff-only origin feature/gate-hardware-integration
+git switch feature/parking-full-integration
+git pull --ff-only origin feature/parking-full-integration
 ```
 
 Integrated sketches: `firmware/uno_gate_sim/uno_gate_sim.ino` and
@@ -52,8 +60,8 @@ standalone UNO bench diagnostic at **9600 baud**. LCD commands are `WAIT`, `READ
 UART/MQTT pipeline. Neither gate sketch drives the servo; D9 remains unused.
 
 [README_ice.md](README_ice.md) contains the teammate's camera/recognition project
-notes. Use the v2 proposal for this branch's arrival/passage roles and integration
-boundaries.
+notes. The v2 proposal documents historical arrival/passage behavior. The revised
+entrance/exit proposal above awaits teammate confirmation before implementation.
 
 ### Run the isolated gate dashboard
 
