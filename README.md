@@ -2,12 +2,21 @@
 
 ## Sensor and gate integration handoff
 
+The single-origin migration connection is prepared at **http://127.0.0.1:8081**.
+See [migration startup, frontend routes and remaining API work](docs/dashboard-migration-handoff.md).
+It serves the existing sensor dashboard plus authenticated camera streams,
+fresh snapshots and read-only parking status/history/media. Both streams and
+sensor/history reads passed together; environment and G3 telemetry are fresh.
+The incoming dashboard panels are still teammate work. Parking writers remain
+off until the passage-aware API is published; servo output stays disabled.
+
 The minimum joint HTTP bridge is now available: see
 [same-laptop run instructions and API boundaries](docs/parking-joint-minimum.md).
-The Windows API is now running on localhost:8001 at teammate commit 7638868;
+The Windows API runs on localhost:8001 at teammate commit 7638868;
 schema/isolation preflight and three OCR model checksums passed. Its three
-actual-camera joint tests remain **blocked** pending shared camera Wi-Fi and
-owner supervision. Earlier live gate tests below remain valid;
+actual-camera joint tests remain **pending**. Shared camera Wi-Fi and fresh
+JPEG access now work; new session finalization must use the passage-aware API
+described in the migration handoff. Earlier live gate tests below remain valid;
 they do not establish joint camera/session acceptance.
 
 Current branch: **`feature/parking-full-integration`**, based on merged

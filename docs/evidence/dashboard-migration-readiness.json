@@ -1,0 +1,74 @@
+{
+  "occurred_at": "2026-11-27T13:30:11.198944+00:00",
+  "parking_commits": 0,
+  "mqtt_commands": 0,
+  "images_saved": false,
+  "streams": {
+    "entrance": {
+      "http": 200,
+      "jpeg": true
+    },
+    "exit": {
+      "http": 200,
+      "jpeg": true
+    }
+  },
+  "reads_with_two_streams": {
+    "/": 200,
+    "/api/latest": 200,
+    "/api/history?source=esp32&field=temperature_c&minutes=1": 200,
+    "/parking/status": 200,
+    "/parking/history?limit=1": 200,
+    "/api/integration/readiness": 200
+  },
+  "capacity": {
+    "vip": {
+      "total": 2,
+      "occupied": 0,
+      "available": 2
+    },
+    "normal": {
+      "total": 3,
+      "occupied": 0,
+      "available": 3
+    }
+  },
+  "readiness": {
+    "mode": "read_only_simulation",
+    "sensor_service_ready": true,
+    "parking_service_ready": true,
+    "parking_storage": "local",
+    "gate_mode": "simulation",
+    "gate_telemetry_fresh": true,
+    "gate_cycle_ready": false,
+    "gate_phase_code": 5,
+    "gate_reason_code": 7,
+    "environment_fresh": true,
+    "pending_feedback": 0,
+    "mqtt_prefix": "parking/test/v1",
+    "session_writes_enabled": false,
+    "session_workflow": "pending_teammate_passage_aware_api",
+    "camera_check": "Open each stream or request a fresh snapshot; health does not capture images"
+  },
+  "snapshots": {
+    "entrance": {
+      "jpeg": true,
+      "role": "entrance",
+      "http": 200
+    },
+    "exit": {
+      "jpeg": true,
+      "role": "exit",
+      "http": 200
+    }
+  },
+  "concurrent_reads_seconds": 4.12,
+  "write_routes_blocked": true,
+  "focused_gateway_tests": {
+    "passed": 3,
+    "failed": 0
+  },
+  "launcher_stop_restart": "passed",
+  "firmware_changed": false,
+  "teammate_source_changed": false
+}
