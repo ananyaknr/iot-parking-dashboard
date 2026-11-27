@@ -1,5 +1,27 @@
 # Issue 1 implementation and ownership ledger
 
+## Confirmed v1 simulation implementation — 2026-11-27
+
+The owner relayed teammate agreement for `parking/v1/arrival`,
+`parking/v1/gate/command` and `parking/v1/gate/ack`, own event IDs, shared
+arrival IDs, ultrasonic entrance/exit direction, Unicode/ASCII LCD plates and
+car/sportcar/supercar. Implemented isolated mirrors, separate G3 UART, backend
+durable duplicate/expiry checks, local automatic exit, and a separate dashboard
+panel while preserving old G2 history. The [confirmed contract](parking-v1-confirmed.md)
+records the final agreed feedback and acknowledgement contract.
+Durable feedback retries now continue until correlated recorded acknowledgement; no session writer or allocator
+was added. Servo remains disconnected/compile-disabled. Detailed actual build,
+software and live results are in the current PR verification receipt; historical
+restoration/readiness statements below are dated checkpoints.
+
+Live simulated entrance OPEN/LCD and automatic exit (zero remote commands)
+both passed with explicit owner passage confirmation and safe completed feedback.
+UART/sonar collision was resolved with a bounded G3 receive slot. Seven pending
+feedback messages survived backend restart with identical payloads and cleared
+only after recorded receipts. Eleven focused Python tests, three native C++
+test programs, real isolated MQTT and Chrome/history checks passed. See
+[actual verification and remaining teammate tests](parking-v1-verification.md).
+
 ## Independent UNO restoration — 2026-11-27
 
 Owner explicitly authorized implementation independent of the pending teammate

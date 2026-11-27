@@ -1,5 +1,11 @@
 # Entrance/exit integration — proposed v1 extensions
 
+Historical proposal only. The owner subsequently confirmed the five-topic
+`parking/v1/*` foundation. The implemented isolated simulation and exact current
+payloads are documented in [parking-v1-confirmed.md](parking-v1-confirmed.md).
+The six-topic revision below was not enabled. The final feedback and recorded
+receipt agreement supersedes these old examples. Session writes remain teammate-owned.
+
 Status: **awaiting teammate confirmation; not an enabled interface**.
 Subsequent owner authorization permits independent UNO restoration/servo and
 local bench preparation while this shared MQTT revision is pending. See

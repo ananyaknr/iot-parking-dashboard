@@ -4,21 +4,28 @@
 
 Current branch: **`feature/parking-full-integration`**, based on merged
 [PR #4](https://github.com/ananyaknr/iot-parking-dashboard/pull/4) at `8d3b445`.
-The new owner workflow is **U1 entrance / U2 exit**, with entrance camera
-authorization and an automatic local exit cycle. The integrated UNO source now
-includes a compile-disabled SG90 driver and an explicit USB LOCAL bench controller
-for independent entrance/exit preparation. The restored default still uses the
-historical G2 arrival/passage telemetry expected by the unchanged ESP32; LOCAL
-suspends that gate feed rather than relabeling U2 passages as exits. Shared MQTT
-delivery still awaits exact teammate agreement. See the
-[proposed revised contract and readiness checklist](docs/parking-full-integration-contract.md).
+The current workflow is **U1 entrance / U2 exit**. The teammate confirmed the
+`parking/v1/arrival`, `parking/v1/gate/command`, `parking/v1/gate/ack` foundation;
+this branch implements isolated `parking/test/v1/*` mirrors. GateBench now has a
+separate G3 UART/MQTT path, entrance OPEN/LCD delivery, automatic local simulated
+exit, persistent command deduplication and UTC expiry checks. JSON stays on
+ESP32/backend; Unicode plates stay on the backend, with printable ASCII sent to
+LCD. Car, sportcar and supercar are supported. See the
+[agreed interface](docs/parking-v1-confirmed.md) and [actual verification](docs/parking-v1-verification.md).
+The final feedback/receipt contract is implemented with durable SQLite retries and controller-confirmed acceptance. Session matching/release remains teammate-owned.
+Live simulated entrance and automatic exit both passed with explicit owner
+passage confirmation, safe closing and completed feedback. LCD TEST0001/sportcar
+was visually confirmed. Seven feedback messages survived backend restart and
+cleared only after recorded acknowledgements. Fresh telemetry/history/cloud
+checks passed; see the linked verification receipts for scope and limitations.
+No teammate code, allocator, Supabase or parking-session writes were added.
 Supervised bench confirmation with simulated movement is owner-approved;
 servo output remains disabled. No A1/M1 availability feed is required for the
 new integration. Availability, reservations, recognition and sessions belong
 to the teammate. Environmental sensing, native Windows services and sensor
 cloud/history functionality remain preserved.
 
-**UNO restoration:** the repository integrated sketch (not the temporary servo
+**Earlier UNO restoration checkpoint (superseded by G3 work):** the repository integrated sketch (not the temporary servo
 diagnostic) was compiled and uploaded with verification on CH340 **COM7**, servo
 disconnected and manual/automatic physical output disabled. Final build: 20,178
 bytes flash, 1,450 bytes static RAM, 598 bytes remaining. USB diagnostics found
@@ -47,7 +54,7 @@ breadboards and 1 kΩ upper / 2 kΩ lower UART divider. Servo/camera integration
 calibration and long-duration acceptance remain pending. PR #4 is now merged;
 this historical demonstration does not establish the new entrance/exit workflow.
 
-Implemented in this branch:
+Preserved historical G2 functionality:
 
 - UNO U1 arrival and U2 passage sensing, simulated opening/closing with clearance
   checks, KY-002 sampled vibration transitions, and LCD plate/vehicle labels.

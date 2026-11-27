@@ -19,7 +19,9 @@ from recognition_adapter import RecognitionAdapter
 from runtime import Ingestion, StorageWorker
 from cloud_storage import start_optional_cloud,start_gate_test_cloud
 from webapp import create_app
+from parking_v1 import ParkingV1,TELEMETRY as V3_TELEMETRY,COMMAND as V1_COMMAND,WIRE_ACK as V3_ACK,FEEDBACK_ACK as V1_FEEDBACK_ACK
 from waitress import create_server
+from parking_clock import VerifiedClock
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("parking")
@@ -40,6 +42,9 @@ def main():
     routing=os.environ.get('GATE_SCHEMA_ROUTING','off')
     approved=os.environ.get('GATE_PRODUCTION_APPROVED')=='yes'
     gate_enabled=gate_routing(origin,prefix,bucket,routing,approved)
+    v1_enabled=os.environ.get('PARKING_V1_ENABLED')=='yes'
+    if v1_enabled and not (gate_enabled and routing=='isolated' and prefix=='parking/test' and bucket=='sensor_test'):
+        raise ValueError('Parking v1 simulation requires isolated test routing')
     wire_topics={topic.replace('parking/',prefix+'/',1):topic for topic in TOPICS
                  if TOPICS[topic]!='gate' or gate_enabled}
     if gate_enabled and routing=='isolated' and os.environ.get('GATE_ENVIRONMENT_FROM_PRODUCTION')=='yes':
@@ -68,6 +73,10 @@ def main():
                          client_id=os.environ.get("MQTT_CLIENT_ID", "parking-backend"), clean_session=True)
     client.username_pw_set(os.environ["MQTT_USERNAME"], os.environ["MQTT_PASSWORD"])
     client.reconnect_delay_set(min_delay=1, max_delay=10)
+    parking_clock=VerifiedClock(stop) if v1_enabled else None
+    parking=ParkingV1(runtime/'parking-v1-test.sqlite3',lambda topic,payload:client.publish(topic,payload,qos=1,retain=False),clock=parking_clock,clock_verified=parking_clock.verified) if v1_enabled else None
+    if parking:
+        for topic in (V3_TELEMETRY,V1_COMMAND,V3_ACK,V1_FEEDBACK_ACK):wire_topics[topic]=topic
 
     def on_connect(c, userdata, flags, reason_code, properties):
         if reason_code == 0:
@@ -97,7 +106,7 @@ def main():
         except queue.Full:
             status["dropped"] += 1
             with state_lock:
-                states[TOPICS[item[0]]].reject(item[4])
+                if item[0] in TOPICS:states[TOPICS[item[0]]].reject(item[4])
             log.error("Receive queue full; message dropped")
 
     client.on_connect, client.on_disconnect, client.on_message = on_connect, on_disconnect, on_message
@@ -111,14 +120,16 @@ def main():
             for name in sources:
                 sources[name]["last_received_utc"] = received_utc[name]
             sources["uno"]["legacy"]=True
+        p3=parking.snapshot() if parking else {'enabled':False}
         return {"received_at_utc": datetime.now(timezone.utc).isoformat(),
                 "data_origin": os.environ.get("DATA_ORIGIN", "hardware"),
                 "mqtt_connected": connected.is_set(),
                 **storage.snapshot(),
                 "cloud": cloud.snapshot() if cloud else {"enabled": False, "error": cloud_error},
                 'gate_routing':routing,'gate_event_errors':event_errors,'recognition':recognition.snapshot(),
-                "ingestion_connected": connected.is_set() and any(
-                    s["fresh"] and s["payload_valid"] for s in sources.values()),
+                'parking3':p3,
+                "ingestion_connected": connected.is_set() and (p3.get('fresh',False) or any(
+                    s["fresh"] and s["payload_valid"] for s in sources.values())),
                 "ingestion_queue_depth": messages.qsize(),
                 "rejected_messages": ingestion.rejected, "dropped_messages": status["dropped"],
                 "discarded_messages": ingestion.discarded,
@@ -131,6 +142,7 @@ def main():
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stop.set())
     next_snapshot = 0.0
+    next_parking_tick=0.0
 
     def point(source, fields, kind, stamp):
         p = (Point(MEASUREMENTS[source]).tag("source", source).tag("kind", kind)
@@ -156,6 +168,20 @@ def main():
                 with state_lock:
                     if generation != status["generation"] or not connected.is_set():
                         ingestion.discarded += 1
+                        continue
+                    if parking and topic in (V3_TELEMETRY,V1_COMMAND,V3_ACK,V1_FEEDBACK_ACK):
+                        if time.monotonic()-received_mono>2:
+                            ingestion.discarded+=1
+                            continue
+                        try:
+                            data=parking.receive(topic,payload,retained)
+                            if data:
+                                p=(Point('parking_gate_v3').tag('source','parking3').tag('data_origin',origin)
+                                   .time(stamp,WritePrecision.NS))
+                                for field in ('u1_distance_cm','u2_distance_cm','cycle','vibration_raw','vibration_transition_count','phase','lane','reason'):
+                                    if data[field] is not None:p.field(field,float(data[field]) if field.endswith('_cm') else data[field])
+                                storage.submit(p)
+                        except (ValueError,TypeError,KeyError,OverflowError,RecursionError,sqlite3.Error):parking.rejected+=1
                         continue
                     rejected_before = ingestion.rejected
                     source = ingestion.receive(topic, payload, retained, duplicate,
@@ -185,6 +211,10 @@ def main():
                                        .field("rejected", True).field("reason", "invalid_or_retained")
                                        .time(stamp, WritePrecision.NS))
             now = time.monotonic()
+            if parking and connected.is_set() and now>=next_parking_tick:
+                next_parking_tick=now+1
+                try:parking.tick()
+                except (sqlite3.Error,OSError):parking.rejected+=1;log.warning('Parking retry ledger unavailable; sensor ingestion continues')
             if now >= next_snapshot:
                 stamp = datetime.now(timezone.utc)
                 with state_lock:
@@ -202,6 +232,7 @@ def main():
         if cloud is not None:
             cloud.close()
         if events is not None:events.close()
+        if parking is not None:parking.close()
         writer.close()
         influx.close()
 

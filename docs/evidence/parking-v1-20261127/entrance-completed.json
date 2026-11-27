@@ -1,0 +1,71 @@
+{
+  "verified_at_utc": "2026-11-27T09:47:15.756728+00:00",
+  "parking3": {
+    "clock_verified": true,
+    "command_outcome": "accepted",
+    "enabled": true,
+    "feedback_enabled": true,
+    "fresh": true,
+    "pending_feedback": 5,
+    "recognition": {
+      "arrival_id": "r_ae3d1115f57f2bc797138de0c15a11d4_1",
+      "lcd_plate": "TEST0001",
+      "license_plate": "TEST0001",
+      "occurred_at": "2026-11-27T09:45:51.349332+00:00",
+      "vehicle_type": "sportcar"
+    },
+    "rejected": 0,
+    "session_release": "teammate_owned",
+    "telemetry": {
+      "boot_id": "ae3d1115f57f2bc797138de0c15a11d4",
+      "cycle": 1,
+      "gateway_boot_id": "ddfae2e171da0499bdd68cbcac3db1a0",
+      "gateway_uptime_ms": 2501300,
+      "lane": 0,
+      "minimum_open_ms": 5000,
+      "mode": "entrance_exit_sim",
+      "phase": 1,
+      "reason": 13,
+      "schema_version": 3,
+      "servo_enabled": false,
+      "started_at_ms": 243770,
+      "u1_distance_cm": 27.5,
+      "u1_state": "clear",
+      "u2_distance_cm": 20.5,
+      "u2_state": "clear",
+      "uptime_ms": 330524,
+      "vibration_raw": 1,
+      "vibration_transition_count": 0
+    }
+  },
+  "feedback": [
+    {
+      "schema_version": 1,
+      "event_id": "a5b4871275264f3a97f860c82ac51e86",
+      "producer_id": "sensor-gateway",
+      "occurred_at": "2026-11-27T09:45:52.310502+00:00",
+      "arrival_id": "r_ae3d1115f57f2bc797138de0c15a11d4_1",
+      "command_id": "e91d0f0c703743b48a3c4de10d1acee4",
+      "direction": "entrance",
+      "state": "opening",
+      "passage_confirmed": false,
+      "simulation": true,
+      "reason": "controller_reason_5"
+    },
+    {
+      "schema_version": 1,
+      "event_id": "de8bd4bff4884958bd2a64ef37c4667b",
+      "producer_id": "sensor-gateway",
+      "occurred_at": "2026-11-27T09:47:15.604356+00:00",
+      "arrival_id": "r_ae3d1115f57f2bc797138de0c15a11d4_1",
+      "command_id": "e91d0f0c703743b48a3c4de10d1acee4",
+      "direction": "entrance",
+      "state": "completed",
+      "passage_confirmed": true,
+      "simulation": true,
+      "reason": null
+    }
+  ],
+  "owner_confirmation": "simulated entrance passage confirmed; both clear",
+  "physical_movement": false
+}

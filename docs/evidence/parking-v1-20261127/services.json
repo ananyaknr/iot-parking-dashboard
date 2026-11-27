@@ -1,0 +1,102 @@
+[
+  {
+    "port": 5000,
+    "mqtt": true,
+    "storage": true,
+    "routing": "off",
+    "sources": {
+      "camera": {
+        "fresh": false,
+        "payload_valid": false,
+        "last_received_utc": null,
+        "u1_distance_cm": null,
+        "u2_distance_cm": null,
+        "vibration_transition_count": null,
+        "gate_sim_state": null
+      },
+      "esp32": {
+        "fresh": true,
+        "payload_valid": true,
+        "last_received_utc": "2026-11-27T09:51:14.173502+00:00",
+        "u1_distance_cm": null,
+        "u2_distance_cm": null,
+        "vibration_transition_count": null,
+        "gate_sim_state": null
+      },
+      "gate": {
+        "fresh": false,
+        "payload_valid": false,
+        "last_received_utc": null,
+        "u1_distance_cm": null,
+        "u2_distance_cm": null,
+        "vibration_transition_count": null,
+        "gate_sim_state": "unknown"
+      },
+      "uno": {
+        "fresh": false,
+        "payload_valid": false,
+        "last_received_utc": null,
+        "u1_distance_cm": null,
+        "u2_distance_cm": null,
+        "vibration_transition_count": null,
+        "gate_sim_state": null
+      }
+    },
+    "cloud": {
+      "enabled": true,
+      "error": null,
+      "uploaded": 923,
+      "pending": 0
+    }
+  },
+  {
+    "port": 5001,
+    "mqtt": true,
+    "storage": true,
+    "routing": "isolated",
+    "sources": {
+      "camera": {
+        "fresh": false,
+        "payload_valid": false,
+        "last_received_utc": null,
+        "u1_distance_cm": null,
+        "u2_distance_cm": null,
+        "vibration_transition_count": null,
+        "gate_sim_state": null
+      },
+      "esp32": {
+        "fresh": true,
+        "payload_valid": true,
+        "last_received_utc": "2026-11-27T09:51:14.173502+00:00",
+        "u1_distance_cm": null,
+        "u2_distance_cm": null,
+        "vibration_transition_count": null,
+        "gate_sim_state": null
+      },
+      "gate": {
+        "fresh": false,
+        "payload_valid": false,
+        "last_received_utc": null,
+        "u1_distance_cm": null,
+        "u2_distance_cm": null,
+        "vibration_transition_count": null,
+        "gate_sim_state": "unknown"
+      },
+      "uno": {
+        "fresh": false,
+        "payload_valid": false,
+        "last_received_utc": null,
+        "u1_distance_cm": null,
+        "u2_distance_cm": null,
+        "vibration_transition_count": null,
+        "gate_sim_state": null
+      }
+    },
+    "cloud": {
+      "enabled": true,
+      "error": null,
+      "uploaded": 28,
+      "pending": 2
+    }
+  }
+]

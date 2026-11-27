@@ -1,0 +1,15 @@
+{
+  "verified_at_utc": "2026-11-27T09:51:15.778362+00:00",
+  "fresh_g3": true,
+  "clock_verified": true,
+  "pending_feedback": 0,
+  "servo_enabled": false,
+  "phase": 1,
+  "u1_cm": 27.5,
+  "u2_cm": 20.4,
+  "environment_fresh": true,
+  "mqtt": true,
+  "storage": true,
+  "cloud_uploaded": 28,
+  "cloud_pending": 2
+}

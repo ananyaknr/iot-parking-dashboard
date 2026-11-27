@@ -1,0 +1,12 @@
+{
+  "verified_at_utc": "2026-11-27T09:51:14.895Z",
+  "actual_browser": "Chrome",
+  "charts": 6,
+  "separate_g3_fresh": true,
+  "servo_enabled": false,
+  "feedback_enabled": true,
+  "session_writes": 0,
+  "js_errors": [],
+  "screenshot": ".runtime/parking-v3-dashboard.png",
+  "physical_cycle_acceptance": false
+}

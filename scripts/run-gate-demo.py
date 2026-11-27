@@ -41,7 +41,7 @@ def main():
                INFLUX_TOKEN=token,MQTT_HOST=values['MQTT_BIND_IP'],MQTT_TOPIC_PREFIX='parking/test',
                MQTT_CLIENT_ID='parking-gate-isolated-demo',DATA_ORIGIN='hardware_gate_sim',
                GATE_SCHEMA_ROUTING='isolated',GATE_PRODUCTION_APPROVED='no',GATE_MOCK_ADAPTER='no',
-               GATE_ENVIRONMENT_FROM_PRODUCTION='yes',GATE_TEST_CLOUD='yes',DASHBOARD_PORT='5001',
+               GATE_ENVIRONMENT_FROM_PRODUCTION='yes',GATE_TEST_CLOUD='yes',PARKING_V1_ENABLED='yes',DASHBOARD_PORT='5001',
                BACKEND_STOP_FILE=str(ROOT/'.runtime/gate-demo.stop'))
     stop=ROOT/'.runtime/gate-demo.stop'
     if stop.exists():raise ValueError('Remove gate-demo.stop deliberately before restarting the demo')

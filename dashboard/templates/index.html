@@ -4,7 +4,8 @@
 <body><div class="shell">
 <header><div class="eyebrow">INTELLIGENCE PARKING LOT</div><div class="heading"><div><h1>Barrier gate monitoring</h1><p>U1 approach / U2 passage and environmental telemetry · local Windows server</p></div><span id="system" class="badge muted">Connecting</span></div></header>
 <div class="connection-bar" aria-live="polite"><span id="mqtt-status">Broker · Unknown</span><span id="ingestion-status">Ingestion · Unknown</span><span id="uno-status">UNO · Unknown</span><span id="esp32-status">ESP32 · Unknown</span><span id="storage-status">Storage · Unknown</span><span id="updated">Waiting for readings</span></div>
-<main><section aria-labelledby="gate-heading"><div class="section-heading"><h2 id="gate-heading">Barrier gate</h2><span class="badge warning">SIMULATION · Servo disconnected</span></div><div class="parking-grid">
+<main><section aria-labelledby="parking3-heading"><div class="section-heading"><h2 id="parking3-heading">Entrance / exit · isolated simulation</h2><span class="badge warning">Servo disconnected</span></div><article class="card" aria-live="polite"><p id="parking3-status">Waiting for separate entrance/exit telemetry</p><p id="parking3-detail">No physical movement or session release</p><p id="parking3-command">Command receipt unavailable</p></article></section>
+<section aria-labelledby="gate-heading"><div class="section-heading"><h2 id="gate-heading">Historical G2 arrival / passage monitor</h2><span class="badge warning">Separate legacy schema</span></div><div class="parking-grid">
 <article class="card slot"><div class="card-label">SIMULATED GATE STATE</div><div id="gate-sim-state" class="state unknown">Unknown</div><div class="slot-detail"><span>Servo</span><strong id="servo-status">Unknown</strong></div><p id="gate-event">Waiting for gate-v2 telemetry</p></article>
 <article class="card slot"><div class="card-label">U1 · APPROACH ZONE</div><div id="u1-state" class="state unknown">Unknown</div><div class="slot-detail"><span>Distance</span><strong id="u1-distance">Unknown</strong></div><p>Unknown or no echo is never clear</p></article>
 <article class="card slot"><div class="card-label">U2 · PASSAGE ZONE</div><div id="u2-state" class="state unknown">Unknown</div><div class="slot-detail"><span>Distance</span><strong id="u2-distance">Unknown</strong></div><p>Passage then sustained valid clearance</p></article>
@@ -25,5 +26,5 @@
 <article class="card chart-card"><h3>Simulated arrivals / passages <span>counts since controller boot</span></h3><div class="canvas-wrap"><canvas id="counts-chart" aria-label="Arrival and completed passage counters" role="img"></canvas></div></article>
 <article class="card chart-card"><h3>Vibration transitions <span>sampled · not calibrated events</span></h3><div class="canvas-wrap"><canvas id="vibration-chart" aria-label="Vibration transition counter history" role="img"></canvas></div></article>
 </div></section></main>
-<footer><span>Refresh every 2 seconds · Stale after 10 seconds · 7-day retention</span><span>Physical actuation disabled · Recognition/session integration pending agreement</span></footer>
+<footer><span>Refresh every 2 seconds · Stale after 10 seconds · 7-day retention</span><span>Physical actuation disabled · Session matching and release owned by teammate</span></footer>
 </div></body></html>

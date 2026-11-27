@@ -15,7 +15,12 @@ $('arrivals').textContent=reading(g,'arrival_count','',0);$('passages').textCont
 $('gate-event').textContent=usable?('Latest event · '+(g.last_event||'unknown').replaceAll('_',' ')+' · '+new Date(g.last_received_utc).toLocaleTimeString()):'Waiting for fresh gate-v2 telemetry';
 $('temperature').textContent=reading(e,'temperature_c',' °C');$('humidity').textContent=reading(e,'humidity_pct',' %');$('light').textContent=reading(e,'light_raw','',0);$('gas').textContent=reading(e,'gas_raw','',0);
 $('vibration-count').textContent=reading(g,'vibration_transition_count','',0);$('vibration-raw').textContent='Raw level '+(usable&&g.vibration_raw_valid?(g.vibration_raw?'High':'Low'):'unknown')+' · Polarity unverified';
-const recognition=d.recognition||{},test=recognition.origin==='synthetic',hasResult=!!recognition.license_plate;
+const parking3=d.parking3||{},p3=parking3.fresh?parking3.telemetry:null;
+$('parking3-status').textContent=p3?['Boot / check zones','Closed · simulation','Entrance authorization wait','Open · simulation','Closing · simulation','Hold / supervised review'][p3.phase]:'Waiting for fresh entrance/exit telemetry';
+$('parking3-detail').textContent=p3?`Direction: ${['none','entrance','exit','manual'][p3.lane]} · Cycle ${p3.cycle} · U1 ${p3.u1_distance_cm===null?'No echo':p3.u1_distance_cm+' cm'} · U2 ${p3.u2_distance_cm===null?'No echo':p3.u2_distance_cm+' cm'} · Minimum ${p3.minimum_open_ms/1000}s · Servo disabled`:'New G3 data stays separate from historical G2 passages';
+$('parking3-command').textContent=`Command receipt: ${parking3.command_outcome||'none'} · Feedback awaiting receipt: ${parking3.pending_feedback||0} · Session matching/release: teammate owned`;
+if(p3){$('vibration-count').textContent=p3.vibration_transition_count;$('vibration-raw').textContent=`Raw level ${p3.vibration_raw?'High':'Low'} · Polarity unverified · G3`}
+const recognition=parking3.recognition?{status:'authorized_simulation',...parking3.recognition}:d.recognition||{},test=recognition.origin==='synthetic',hasResult=!!recognition.license_plate;
 $('recognition-status').textContent=test?'Test recognition · synthetic':(recognition.status||'Not configured').replaceAll('_',' ');
 $('license-plate').textContent=hasResult?recognition.license_plate:'Unavailable';$('vehicle-type').textContent=hasResult?(recognition.vehicle_type||'unknown').toUpperCase():'UNKNOWN';
 $('recognition-time').textContent=recognition.occurred_at?new Date(recognition.occurred_at).toLocaleString():'Unavailable';
