@@ -7,6 +7,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include "secrets.h"
+#include "MqttRecovery.h"
 // Full gate JSON can be decoded while the environmental ADC loop drains UART.
 // Reserve room for those nested frames and the MQTT hand-off on the ESP32.
 SET_LOOP_TASK_STACK_SIZE(16384);
@@ -25,7 +26,7 @@ constexpr uint32_t SENSOR_INTERVAL_MS = 2500;
 DHT dht(DHT_PIN, DHT22);
 WiFiClient wifiClient;
 PubSubClient mqtt(wifiClient);
-struct Message { bool uno; bool gate; bool ack; uint32_t received,generation; char payload[1024]; };
+struct Message { bool uno; bool gate; bool ack; uint8_t v3;uint32_t received,generation; char payload[1024]; };
 struct DisplayMessage { char text[48]; uint32_t received,generation; bool usb; };
 QueueHandle_t displayQueue;
 char usbLine[48]; size_t usbLength=0; bool usbOverflow=false;
@@ -42,11 +43,11 @@ char pendingId[9]="",pendingText[64]="";
 uint32_t pendingSince=0;
 bool pendingRetried=false;
 
-void enqueue(bool uno, const char *payload, bool gate=false, bool ack=false) {
+void enqueue(bool uno, const char *payload, bool gate=false, bool ack=false,uint8_t v3=0) {
   // Drop offline data; never replay an old UNO message as a fresh arrival.
   if (!mqttOnline) return;
   Message item{};
-  item.uno = uno; item.gate = gate; item.ack=ack;item.generation=mqttGeneration.load();
+  item.uno = uno; item.gate = gate; item.ack=ack;item.v3=v3;item.generation=mqttGeneration.load();
   item.received = millis();
   strlcpy(item.payload, payload, sizeof(item.payload));
   if (xQueueSend(publishQueue, &item, 0) != pdTRUE)
@@ -56,7 +57,10 @@ void enqueue(bool uno, const char *payload, bool gate=false, bool ack=false) {
 void randomHex(char* target,size_t words) {
   for(size_t i=0;i<words;++i) snprintf(target+i*8,9,"%08lx",(unsigned long)esp_random());
 }
+#include "ParkingV3.h"
 void receiveFrame(char* frame) {
+  ++uartFrames;
+  if(receiveV3(frame)) return;
   if(!strcmp(frame,"HELLO2")) {
     if(!sessionPending) {randomHex(activeBoot,4);sessionPending=true;pendingId[0]=0;}
     Serial2.print("S2|");Serial2.println(activeBoot);return;
@@ -103,7 +107,7 @@ void readUNO() {
   if(unoFrame.size && uint32_t(millis()-frameStarted)>500) {unoFrame.size=0;unoFrame.bad=true;}
   for(uint16_t budget=0;Serial2.available() && budget<512;++budget) {
     if(!unoFrame.size && !unoFrame.bad) frameStarted=millis();
-    if(unoFrame.feed(char(Serial2.read()))) receiveFrame(unoFrame.data);
+    ++uartBytes;if(unoFrame.feed(char(Serial2.read()))) receiveFrame(unoFrame.data);
   }
 }
 // USB and rotating-nonce MQTT test topics accept synthetic display-only commands.
@@ -133,11 +137,13 @@ void readUSB() {
   }
 }
 void testDisplayCallback(char* topic,byte* payload,unsigned int length) {
+  if(!strcmp(topic,V3_CONTROL)) {queueV3(payload,length);return;}
   if(strcmp(topic,commandTopic) || !length || length>=48) return;
   char text[48];memcpy(text,payload,length);text[length]=0;
   if(strlen(text)==length) queueDisplay(text,false);
 }
 void sendDisplay() {
+  if(v3Token[0]) return;
   uint32_t now=millis();
   if(pendingId[0]) {
     if(uint32_t(now-pendingSince)>=1500) {Serial.printf("LCD_ACK_TIMEOUT|%s\n",pendingId);pendingId[0]=0;}
@@ -193,7 +199,9 @@ void networkTask(void *) {
   // Only this task touches MQTT; slow TCP/MQTT connects cannot block UART reception.
   uint32_t lastWifiAttempt = 0, lastMqttAttempt = 0;
   bool wifiStarted = false;
+  MqttRecovery recovery;
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
+  wifiClient.setConnectionTimeout(1000);
   mqtt.setCallback(testDisplayCallback);
   if (!mqtt.setBufferSize(1536)) {
     Serial.println(F("[MQTT] buffer allocation failed"));
@@ -246,7 +254,10 @@ void networkTask(void *) {
         lastMqttAttempt = now;
         Serial.print(F("[WiFi] connected, local IP: "));
         Serial.println(WiFi.localIP());
+        // A failed connect may leave a half-open transport. Start a fresh socket.
+        wifiClient.stop();
         if (mqtt.connect(clientId, MQTT_USERNAME, MQTT_PASSWORD)) {
+          recovery.connected();
           xQueueReset(publishQueue); // erase anything queued before this connection
           ++mqttGeneration;
           char nonce[17];randomHex(nonce,2);
@@ -254,12 +265,23 @@ void networkTask(void *) {
           // Subscribe before advertising the fresh random topic. An old retained
           // command belongs to an earlier connection topic and cannot be replayed.
           if(!mqtt.subscribe(commandTopic,0)) Serial.println(F("[LCD] test subscription failed"));
+          mqtt.subscribe(V3_CONTROL,1);
           char ready[180];snprintf(ready,sizeof(ready),"{\"schema_version\":2,\"test_only\":true,\"topic\":\"%s\"}",commandTopic);
           mqtt.publish("parking/test/gate/lcd/ready",ready,false);
           mqttOnline = true;
           Serial.println(F("[MQTT] connected"));
         } else {
           Serial.print(F("[MQTT] connect failed, state=")); Serial.println(mqtt.state());
+          if(recovery.failed(mqtt.state())) {
+            // Association alone is not proof of a usable TCP path. Recover it
+            // after six failed transport attempts rather than retrying forever.
+            // UART sampling continues in loop(); queued commands still expire.
+            Serial.println(F("[MQTT] transport recovery: reassociating WiFi"));
+            wifiClient.stop();
+            WiFi.disconnect(false, false);
+            wifiStarted=false;
+            lastMqttAttempt=0;
+          }
         }
       }
     } else {
@@ -268,7 +290,7 @@ void networkTask(void *) {
       if (mqttOnline && xQueueReceive(publishQueue, &item, 0) == pdTRUE) {
         // A short bounded hand-off, not an offline/reconnection replay buffer.
         if (item.generation==mqttGeneration.load() && millis() - item.received <= 1000) {
-          bool ok = mqtt.publish(item.ack ? "parking/test/gate/lcd/ack" : item.gate ? "parking/test/gate/telemetry" : item.uno ? "parking/node/telemetry" : "parking/gateway/telemetry",
+          bool ok = mqtt.publish(item.v3==1?"parking/test/gate/v3/telemetry":item.v3==2?"parking/test/gate/v3/ack":item.ack ? "parking/test/gate/lcd/ack" : item.gate ? "parking/test/gate/telemetry" : item.uno ? "parking/node/telemetry" : "parking/gateway/telemetry",
                                  item.payload, false);
           if (!ok) {
             Serial.println(F("[MQTT] publish failed; message dropped"));
@@ -291,7 +313,8 @@ void setup() {
   pinMode(LDR_PIN, INPUT); pinMode(MQ2_PIN, INPUT);
   publishQueue = xQueueCreate(16, sizeof(Message));
   displayQueue = xQueueCreate(4,sizeof(DisplayMessage));
-  if (!publishQueue || !displayQueue || xTaskCreate(networkTask, "network", 16384, nullptr, 1, nullptr) != pdPASS) {
+  v3Queue=xQueueCreate(4,sizeof(V3Command));randomHex(gatewayBoot,4);
+  if (!publishQueue || !displayQueue || !v3Queue || xTaskCreate(networkTask, "network", 16384, nullptr, 1, nullptr) != pdPASS) {
     Serial.println(F("[MQTT] task setup failed; USB telemetry remains active"));
   }
 }
@@ -299,6 +322,7 @@ void setup() {
 void loop() {
   readUNO();
   readUSB();
+  sendV3();
   sendDisplay();
   uint32_t now = millis();
   if (now - lastSensorRead >= SENSOR_INTERVAL_MS) {
@@ -306,5 +330,7 @@ void loop() {
     readEnvironment();
   }
   readUNO();
+  static uint32_t diagAt=0;
+  if(uint32_t(millis()-diagAt)>=10000) {diagAt=millis();Serial.printf("UART_DIAG|bytes=%lu|frames=%lu|hello3=%lu|g3=%lu\n",(unsigned long)uartBytes,(unsigned long)uartFrames,(unsigned long)v3Hellos,(unsigned long)uartValid);}
   delay(1);
 }

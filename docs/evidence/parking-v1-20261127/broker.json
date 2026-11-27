@@ -1,0 +1,16 @@
+{
+  "verified_at_utc": "2026-11-27T09:30:29.494244+00:00",
+  "namespace": "parking/test/acceptance/49aae26c0a674e4d9b9f70c93b3ed7c1/",
+  "real_broker": true,
+  "mock_teammate_and_gateway": true,
+  "physical_hardware_test": false,
+  "entrance_correlated_open": true,
+  "unicode_and_ascii_sportcar": true,
+  "duplicate_control_count": 1,
+  "exit_arrival_without_open_command": true,
+  "invalid_direction_and_expiry_rejected": 2,
+  "feedback_published": true,
+  "feedback_recorded_ack": true,
+  "parking_sessions_written": 0,
+  "production_messages": 0
+}

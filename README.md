@@ -2,11 +2,72 @@
 
 ## Sensor and gate integration handoff
 
-Development branch: **`feature/gate-hardware-integration`**, tracked by
-[PR #4](https://github.com/ananyaknr/iot-parking-dashboard/pull/4). Sensor cloud
-deployment from PR #3 is merged. Gate integration is a **servo-disabled
-simulation**; physical end-to-end acceptance and production migration are
-separate approval steps. See the [verification ledger](docs/gate-v2-verification.md).
+For the gateway's intermittent MQTT transport failure, see the
+[diagnosis, bounded reconnect repair and rollback](docs/esp32-mqtt-recovery.md).
+The dashboard distinguishes missing telemetry from an ultrasonic no-echo;
+neither is shown as fresh valid clearance.
+
+The combined dashboard is running at **http://127.0.0.1:8081/#/dashboard**.
+See [migration startup, frontend routes and remaining API work](docs/dashboard-migration-handoff.md).
+It combines `feature/dashboard-webapp` at `046e1da` with PR #5's G3 backend,
+serving the new dashboard plus authenticated camera streams,
+fresh snapshots and read-only parking status/history/media. Both streams and
+sensor/history reads passed together; environment and G3 telemetry are fresh.
+Capture/upload, crop correction and photo analysis use the same browser address.
+Parking writers remain
+off until the passage-aware API is published; servo output stays disabled.
+
+The minimum joint HTTP bridge is now available: see
+[same-laptop run instructions and API boundaries](docs/parking-joint-minimum.md).
+The Windows API runs on localhost:8001 at teammate commit 7638868;
+schema/isolation preflight and three OCR model checksums passed. Its three
+actual-camera joint tests remain **pending**. Shared camera Wi-Fi and fresh
+JPEG access now work; new session finalization must use the passage-aware API
+described in the migration handoff. Earlier live gate tests below remain valid;
+they do not establish joint camera/session acceptance.
+
+Current branch: **`feature/parking-full-integration`**, based on merged
+[PR #4](https://github.com/ananyaknr/iot-parking-dashboard/pull/4) at `8d3b445`.
+The current workflow is **U1 entrance / U2 exit**. The teammate confirmed the
+`parking/v1/arrival`, `parking/v1/gate/command`, `parking/v1/gate/ack` foundation;
+this branch implements isolated `parking/test/v1/*` mirrors. GateBench now has a
+separate G3 UART/MQTT path, entrance OPEN/LCD delivery, automatic local simulated
+exit, persistent command deduplication and UTC expiry checks. JSON stays on
+ESP32/backend; Unicode plates stay on the backend, with printable ASCII sent to
+LCD. Car, sportcar and supercar are supported. See the
+[agreed interface](docs/parking-v1-confirmed.md) and [actual verification](docs/parking-v1-verification.md).
+The final feedback/receipt contract is implemented with durable SQLite retries and controller-confirmed acceptance. Session matching/release remains teammate-owned.
+Live simulated entrance and automatic exit both passed with explicit owner
+passage confirmation, safe closing and completed feedback. LCD TEST0001/sportcar
+was visually confirmed. Seven feedback messages survived backend restart and
+cleared only after recorded acknowledgements. Fresh telemetry/history/cloud
+checks passed; see the linked verification receipts for scope and limitations.
+No teammate code, allocator, Supabase or parking-session writes were added.
+Supervised bench confirmation with simulated movement is owner-approved;
+servo output remains disabled. No A1/M1 availability feed is required for the
+new integration. Availability, reservations, recognition and sessions belong
+to the teammate. Environmental sensing, native Windows services and sensor
+cloud/history functionality remain preserved.
+
+**Earlier UNO restoration checkpoint (superseded by G3 work):** the repository integrated sketch (not the temporary servo
+diagnostic) was compiled and uploaded with verification on CH340 **COM7**, servo
+disconnected and manual/automatic physical output disabled. Final build: 20,178
+bytes flash, 1,450 bytes static RAM, 598 bytes remaining. USB diagnostics found
+the LCD (also visually confirmed by owner), vibration input high at rest, both
+ultrasonic readings no echo, and no UART session; serial continuity was unstable.
+The unchanged ESP32 resumed fresh environmental telemetry on both dashboards
+after the owner's power check, and cloud upload counters advanced. U1 reads
+about 8–10 cm; U2 no echo and the missing UART session remain blockers. Both native dashboard
+APIs are up with broker/database connected, but fresh hardware/UART/cloud
+acceptance remains pending. Existing local environmental/gate and isolated cloud
+history retrieval passed. ESP32 source/firmware is unchanged.
+
+Use `SENSORS?`, `VIB?` and `STATUS` at 115200 for diagnostics. LOCAL, OPEN/CLOSE,
+configurable angles, five-second minimum, obstruction behavior and the future
+supervised external-power calibration procedure are documented in
+[UNO restoration and servo preparation](docs/uno-servo-restoration.md).
+The uploaded build refuses ARM; do not reconnect servo power until combined
+power/wiring and supervised movement are confirmed.
 
 The 2026-11-26 servo-disabled hardware demonstration passed: bidirectional UART,
 U1 arrival/U2 passage cycle (counts 1/1), vibration response, CAR/SUPERCAR LCD,
@@ -14,9 +75,10 @@ environment readings and actual local/cloud dashboard history. Standalone
 operator guidance uses a 120-second cycle window; integrated authorization
 remains 20 seconds. See [corrected wiring](docs/wiring.md) for the separate
 breadboards and 1 kΩ upper / 2 kΩ lower UART divider. Servo/camera integration,
-calibration and long-duration acceptance remain pending; PR #4 is unmerged.
+calibration and long-duration acceptance remain pending. PR #4 is now merged;
+this historical demonstration does not establish the new entrance/exit workflow.
 
-Implemented in this branch:
+Preserved historical G2 functionality:
 
 - UNO U1 arrival and U2 passage sensing, simulated opening/closing with clearance
   checks, KY-002 sampled vibration transitions, and LCD plate/vehicle labels.
@@ -38,8 +100,8 @@ Commit or stash your own local changes first, then:
 
 ```powershell
 git fetch origin
-git switch feature/gate-hardware-integration
-git pull --ff-only origin feature/gate-hardware-integration
+git switch feature/parking-full-integration
+git pull --ff-only origin feature/parking-full-integration
 ```
 
 Integrated sketches: `firmware/uno_gate_sim/uno_gate_sim.ino` and
@@ -49,11 +111,13 @@ Do not replace running firmware just to sync source.
 The separate `scripts/gate_hardware_test/gate_hardware_test.ino` is an optional
 standalone UNO bench diagnostic at **9600 baud**. LCD commands are `WAIT`, `READ`,
 `LCD|AB1234|car` and `LCD|AB1234|supercar`. It does not provide the integrated
-UART/MQTT pipeline. Neither gate sketch drives the servo; D9 remains unused.
+UART/MQTT pipeline. The integrated sketch now includes a default-disabled D9
+manual driver; the uploaded build leaves it detached. The old standalone gate
+diagnostic above is not the source used for this restoration.
 
 [README_ice.md](README_ice.md) contains the teammate's camera/recognition project
-notes. Use the v2 proposal for this branch's arrival/passage roles and integration
-boundaries.
+notes. The v2 proposal documents historical arrival/passage behavior. The revised
+entrance/exit proposal above awaits teammate confirmation before implementation.
 
 ### Run the isolated gate dashboard
 
@@ -71,6 +135,32 @@ existing setup scripts; never commit tokens. Cloud is Free Plan only, with
 `parking_sensor_data` and `parking_sensor_test` each retained for 30 days. Keep
 test data in test buckets and the servo disconnected. Production migration and
 merge require approval.
+
+## Combined web app dashboard
+
+Open http://127.0.0.1:8081 for the combined single-page web app (no CDN),
+with G3 entrance/exit and separately labeled historical G2:
+
+| Page | Route | Data |
+|---|---|---|
+| Cover | `#/` | — |
+| Live dashboard | `#/dashboard` | Parking bays · G3 entrance/exit · historical G2 · recognition · environment · cloud |
+| Gate operation | `#/gate` | Both live cameras, capture/upload, plate crop and analysis; session commit disabled |
+| Today / History | `#/admin`, `#/admin/vehicles` | Visits, decisions, charts, CSV, plus the six sensor history charts |
+| Gate decisions · Parking spaces · Devices | `#/admin/review`, `#/admin/slots`, `#/admin/devices` | Ledger, bays, devices and live MQTT topics |
+
+The browser uses the async gateway on 8081. `/api/camera/*` and parking reads
+go directly to the isolated FastAPI API on 8001; streams bypass Flask workers.
+Only same-origin `/api/parking/analyze` POST is enabled through Flask validation.
+`PARKING_API_URL` defaults to `http://127.0.0.1:8001`, and
+`PARKING_SIMULATOR_COMMIT` defaults to `no`. Unreachable parking data becomes
+Unknown, without illustrative visits; sensor and gate cards remain independent.
+
+Run it:
+
+1. Run `scripts/start-unified-dashboard.ps1`, then open http://127.0.0.1:8081/#/dashboard.
+2. Use `#/gate` for both camera previews and recognition, and `#/admin/vehicles` for visits and sensor history.
+3. See [startup, connection checks and current boundaries](docs/dashboard-migration-handoff.md).
 
 Native Windows deployment: **UNO → UART → ESP32 → Wi-Fi → authenticated Mosquitto → Python/Flask → InfluxDB OSS 2.x → local dashboard**.
 

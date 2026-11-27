@@ -1,0 +1,54 @@
+{
+  "recorded_at_utc": "2026-11-27T10:33:14.965001+00:00",
+  "base_commit": "e88ca05",
+  "teammate_inspected_commit": "7638868",
+  "schema_source": "docs/openapi.json; running OpenAPI mandatory at startup",
+  "syntax_validation": "passed",
+  "api_preflight": {
+    "api_reachable": true,
+    "openapi_checked": true,
+    "storage": "local",
+    "gate_mode": "simulation"
+  },
+  "camera_readiness": {
+    "checked_at_utc": "2026-11-27T10:09:44.913909+00:00",
+    "images_saved": false,
+    "cameras": [
+      {
+        "camera": "entrance",
+        "url": "http://172.20.10.4/capture",
+        "error_type": "URLError"
+      },
+      {
+        "camera": "exit",
+        "url": "http://172.20.10.3/capture",
+        "error_type": "URLError"
+      }
+    ]
+  },
+  "tests": [
+    {
+      "name": "Successful entrance with actual camera recognition and reservation",
+      "result": "BLOCKED",
+      "reason": "API ready; cameras/shared Wi-Fi pending and owner away. No joint test executed"
+    },
+    {
+      "name": "Duplicate entrance: one session and one gate cycle",
+      "result": "BLOCKED",
+      "reason": "Requires the successful actual-camera joint entrance"
+    },
+    {
+      "name": "Matched exit: local gate, confirmed passage and correct bay release",
+      "result": "BLOCKED",
+      "reason": "Requires reachable cameras, matching entrance and supervised passage confirmation"
+    }
+  ],
+  "new_joint_sessions_created": 0,
+  "firmware_or_wiring_changed": false,
+  "heavy_dependencies_installed": true,
+  "teammate_repository_modified": false,
+  "servo_enabled": false,
+  "ocr_models_checksums_verified": 3,
+  "network_pending": true,
+  "bridge_running": false
+}

@@ -1,5 +1,79 @@
 # Issue 1 implementation and ownership ledger
 
+## Minimum joint HTTP bridge — 2026-11-27
+
+Added an opt-in isolated MQTT/HTTP bridge using the teammate's checked OpenAPI
+fields. Stable arrival/observation/request identities prevent duplicate sessions
+and commands. Exit commit is deferred until completed confirmed passage; the
+teammate transaction performs matching and release. No second allocator or
+teammate changes were added. Firmware/wiring are unchanged.
+
+Actual joint entrance/duplicate/exit tests remain blocked by the Mac-only test
+API, unavailable cameras and uncommitted Mac exit OCR update. Syntax checks
+passed; no mocked result is reported as actual camera recognition. See
+[run instructions, exact API boundaries and three test statuses](parking-joint-minimum.md).
+
+## Confirmed v1 simulation implementation — 2026-11-27
+
+The owner relayed teammate agreement for `parking/v1/arrival`,
+`parking/v1/gate/command` and `parking/v1/gate/ack`, own event IDs, shared
+arrival IDs, ultrasonic entrance/exit direction, Unicode/ASCII LCD plates and
+car/sportcar/supercar. Implemented isolated mirrors, separate G3 UART, backend
+durable duplicate/expiry checks, local automatic exit, and a separate dashboard
+panel while preserving old G2 history. The [confirmed contract](parking-v1-confirmed.md)
+records the final agreed feedback and acknowledgement contract.
+Durable feedback retries now continue until correlated recorded acknowledgement; no session writer or allocator
+was added. Servo remains disconnected/compile-disabled. Detailed actual build,
+software and live results are in the current PR verification receipt; historical
+restoration/readiness statements below are dated checkpoints.
+
+Live simulated entrance OPEN/LCD and automatic exit (zero remote commands)
+both passed with explicit owner passage confirmation and safe completed feedback.
+UART/sonar collision was resolved with a bounded G3 receive slot. Seven pending
+feedback messages survived backend restart with identical payloads and cleared
+only after recorded receipts. Eleven focused Python tests, three native C++
+test programs, real isolated MQTT and Chrome/history checks passed. See
+[actual verification and remaining teammate tests](parking-v1-verification.md).
+
+## Independent UNO restoration — 2026-11-27
+
+Owner explicitly authorized implementation independent of the pending teammate
+contract, restoring the repository integrated sketch after a temporary standalone
+servo diagnostic. SG90 was disconnected by owner before upload. COM7 verified
+upload passed with manual/automatic output disabled. Added standard Servo driver,
+volatile angle/minimum settings and USB supervised manual preparation; separate
+LOCAL controller implements simulated U1 authorization/U2 automatic exit with
+serialized cycles, minimum-open, explicit confirmation and obstruction/timeout
+hold. LOCAL does not masquerade as G2 passage telemetry. ESP32 is unchanged.
+
+Actual builds, essential C++ regressions, USB diagnostics, current dashboard
+freshness limits and calibration/rollback instructions are recorded in
+[the restoration receipt](uno-servo-restoration.md). Both dashboards are running
+with MQTT/storage connected, but live U1/U2 echoes, UART/environment/cloud samples
+and sustained USB continuity have not passed in this run. LCD was discovered and
+vibration was high at rest. Servo external power and combined stability remain
+unverified; no new servo movement was attempted. Shared MQTT agreement and joint
+acceptance remain pending. PR #5 is not ready for merge.
+
+## Entrance/exit sprint readiness — 2026-11-27
+
+PR #4 is merged at `8d3b445`. Main is synced and
+`feature/parking-full-integration` is based on that merge. The owner's new
+U1 entrance / U2 exit workflow supersedes historical arrival/passage and A1/M1
+integration requirements. Historical data is not relabeled. See the
+[exact proposed revision and acceptance checklist](parking-full-integration-contract.md).
+
+Owner approved supervised bench confirmation with simulated movement. Servo
+remains disabled; wiring, services, sensor cloud, firmware and teammate code are
+unchanged. Read-only teammate repository inspection at `1058ed1` found HTTP
+simulation, no active gate MQTT contract, and exit release during simulated
+commit rather than after terminal passage feedback. Exact payload agreement and
+teammate-side matched-exit sequencing remain prerequisites. No new entrance/exit
+implementation, firmware upload or joint live acceptance is claimed.
+
+The historical sections below retain their original dates and scope; references
+to PR #4 being unmerged or U2 being passage are not current sprint status.
+
 ## Current gate v2 update — 2026-11-26
 
 At 22:08 Bangkok the essential **servo-disabled hardware demonstration passed**:

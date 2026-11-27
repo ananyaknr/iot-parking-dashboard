@@ -1,0 +1,26 @@
+{
+  "verified_utc": "2026-11-27T08:40:47.938474+00:00",
+  "receipts": [
+    {
+      "port": 5000,
+      "route": "/api/history?source=esp32&field=temperature_c&minutes=1440",
+      "ok": true,
+      "points": 601,
+      "nonempty": 29
+    },
+    {
+      "port": 5001,
+      "route": "/api/history?source=gate&field=u1_distance_cm&minutes=1440",
+      "ok": true,
+      "points": 601,
+      "nonempty": 13
+    },
+    {
+      "port": 5001,
+      "route": "/api/cloud/history?source=gate&field=u1_distance_cm&minutes=1440",
+      "ok": true,
+      "points": 601,
+      "nonempty": 12
+    }
+  ]
+}

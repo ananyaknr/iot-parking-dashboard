@@ -110,7 +110,7 @@ inline bool plate(const char* s) {
   for(;*s;++s) if(!((*s>='A'&&*s<='Z')||(*s>='a'&&*s<='z')||(*s>='0'&&*s<='9')||*s==' '||*s=='-')) return false;
   return true;
 }
-inline bool vehicle(const char* s) {return s && (!strcmp(s,"car")||!strcmp(s,"supercar")||!strcmp(s,"unknown"));}
+inline bool vehicle(const char* s) {return s && (!strcmp(s,"car")||!strcmp(s,"sportcar")||!strcmp(s,"supercar")||!strcmp(s,"unknown"));}
 // Exact token count; reject empty, extra, control and embedded NUL bytes upstream.
 inline uint8_t split(char* text,char** fields,uint8_t maximum) {
   uint8_t count=1;fields[0]=text;

@@ -1,0 +1,16 @@
+{
+  "verified_at_utc": "2026-11-27T09:50:40.322017+00:00",
+  "isolated_mock_receiver": true,
+  "pending_after_backend_restart": 7,
+  "same_payloads_received": 7,
+  "pending_after_recorded_ack": 0,
+  "states": [
+    "completed",
+    "hold",
+    "opening"
+  ],
+  "terminal_exit_command_id_null": true,
+  "physical_movement": false,
+  "session_writes": 0,
+  "errors": []
+}

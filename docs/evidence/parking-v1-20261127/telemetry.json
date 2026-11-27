@@ -1,0 +1,31 @@
+{
+  "verified_utc": "2026-11-27T09:28:53.752680+00:00",
+  "physical_movement": false,
+  "gate_cycle_acceptance": false,
+  "ready_topic": null,
+  "g3_count": 12,
+  "environment_count": 4,
+  "lcd_sent": false,
+  "lcd_ack": null,
+  "last_g3": {
+    "schema_version": 3,
+    "mode": "entrance_exit_sim",
+    "boot_id": "b1aa9f26642daa8a904bd8393a42b9a5",
+    "gateway_boot_id": "ddfae2e171da0499bdd68cbcac3db1a0",
+    "uptime_ms": 915221,
+    "gateway_uptime_ms": 1399510,
+    "u1_distance_cm": 10.2,
+    "u2_distance_cm": 23.3,
+    "u1_state": "detected",
+    "u2_state": "clear",
+    "phase": 0,
+    "lane": 0,
+    "cycle": 0,
+    "vibration_raw": 1,
+    "vibration_transition_count": 0,
+    "reason": 0,
+    "minimum_open_ms": 5000,
+    "started_at_ms": 0,
+    "servo_enabled": false
+  }
+}

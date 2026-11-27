@@ -21,6 +21,7 @@ const server = http.createServer((req,res) => {
       storage_connected:false,ingestion_connected:true,storage_backlog:10,
       cloud:{enabled:true,pending:12,staging:0,uploaded:3,dropped:0,failures:failCloud?1:0,
         error:failCloud?'network_error':null,last_success_utc:'2026-11-26T00:00:00Z'},
+      parking3:{enabled:true,fresh:true,telemetry:{phase:2,lane:1,cycle:4,u1_distance_cm:12,u2_distance_cm:null,minimum_open_ms:8000,vibration_raw:0,vibration_transition_count:3,servo_enabled:false},recognition:null,command_outcome:'accepted',pending_feedback:1,session_release:'teammate_owned'},
       recognition:{status:'waiting',license_plate:null,vehicle_type:'unknown'},sources:{gate,uno:source,esp32:source,camera:{fresh:false,payload_valid:false,camera_state:0}}}));
   }
   if (['/api/history','/api/cloud/history'].includes(url.pathname)) {
@@ -46,10 +47,15 @@ const server = http.createServer((req,res) => {
   try {
     const page = await browser.newPage();
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
-    await page.goto(`http://127.0.0.1:${server.address().port}`);
+    await page.goto(`http://127.0.0.1:${server.address().port}/#/admin/vehicles`);
     await page.waitForFunction(()=>charts.length===6);
-    assert.doesNotMatch(await page.locator('body').innerText(),/Allocation|CAR PARK|MOTORCYCLE PARK/);
-    assert.match(await page.locator('#servo-status').innerText(),/Disabled/);
+    await page.waitForFunction(()=>document.getElementById('servo-status').textContent.includes('Disabled'));
+    assert.equal(await page.locator('#parking3-status').textContent(),'Entrance authorization wait');
+    assert.match(await page.locator('#parking3-detail').textContent(),/Direction: entrance · Cycle 4 · U1 12 cm · U2 No echo .*Servo disabled/);
+    assert.match(await page.locator('#parking3-command').textContent(),/accepted .*teammate owned/);
+    assert.equal(await page.locator('#vibration-count').textContent(),'3');
+    assert.match(await page.locator('#g-commit').textContent(),/simulator/);
+    assert.doesNotMatch(await page.locator('body').textContent(),/Allocation|CAR PARK|MOTORCYCLE PARK|A1 distance/);
     for (const range of ['30','1440','10080']) {
       await page.selectOption('#range',range);
       await page.waitForFunction(()=>!historyBusy);
@@ -68,7 +74,9 @@ const server = http.createServer((req,res) => {
     assert.equal(await page.evaluate(()=>charts.length),0);
     assert.match(await page.locator('#history-status').innerText(),/History unavailable/);
     failLive=true;await page.evaluate(()=>live());
-    assert.equal(await page.locator('#gate-sim-state').innerText(),'Unknown');
+    assert.equal(await page.locator('#esp32-status').textContent(),'ESP32 · Unknown');
+    assert.equal(await page.locator('#gate-sim-state').textContent(),'Unknown');
+    assert.equal(await page.locator('#parking3-status').textContent(),'Not enabled');
     failLive=false;failHistory=false;
     await page.evaluate(async()=>{await live();await history();});
     assert.equal(await page.evaluate(()=>charts.length),6);
@@ -87,7 +95,9 @@ const server = http.createServer((req,res) => {
     failCloud=true;await page.evaluate(async()=>{await live();await history();});
     assert.match(await page.locator('#cloud-status').innerText(),/Attention/);
     assert.match(await page.locator('#history-status').innerText(),/Cloud history unavailable/);
-    assert.equal(await page.locator('#gate-sim-state').innerText(),'Open \u00b7 simulation');
+    assert.equal(await page.locator('#esp32-status').textContent(),'ESP32 · Receiving');
+    assert.equal(await page.locator('#gate-sim-state').textContent(),'Open \u00b7 simulation');
+    assert.equal(await page.locator('#u1-state').textContent(),'Detected');
     assert.equal(await page.evaluate(()=>charts.length),0);
     await page.selectOption('#history-source','local');await page.waitForFunction(()=>!historyBusy);
     assert.equal(await page.locator('#range').inputValue(),'10080');
@@ -99,6 +109,6 @@ const server = http.createServer((req,res) => {
     await page.screenshot({path:path.join(root,'.tools/browser-check/dashboard.png'),fullPage:true});
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
     assert.deepEqual(errors,[]);
-    console.log('PASS real Chrome: gate simulation, six timestamp/gap charts, environmental regression, cloud/manual/no-polling/failure/local recovery/mobile');
+    console.log('PASS real Chromium: gate v2 simulation cards, six history charts, local regression plus cloud selector/30-day range/manual refresh/no polling/failure/local recovery/mobile width');
   } finally {await browser.close();server.close();}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});

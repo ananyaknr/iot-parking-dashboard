@@ -1,0 +1,55 @@
+{
+  "verified_at_utc": "2026-11-27T09:49:18.700892+00:00",
+  "telemetry": {
+    "boot_id": "ae3d1115f57f2bc797138de0c15a11d4",
+    "cycle": 2,
+    "gateway_boot_id": "ddfae2e171da0499bdd68cbcac3db1a0",
+    "gateway_uptime_ms": 2624168,
+    "lane": 0,
+    "minimum_open_ms": 5000,
+    "mode": "entrance_exit_sim",
+    "phase": 1,
+    "reason": 13,
+    "schema_version": 3,
+    "servo_enabled": false,
+    "started_at_ms": 358775,
+    "u1_distance_cm": 26.7,
+    "u1_state": "clear",
+    "u2_distance_cm": 20.6,
+    "u2_state": "clear",
+    "uptime_ms": 453402,
+    "vibration_raw": 1,
+    "vibration_transition_count": 0
+  },
+  "remote_command_count": 0,
+  "feedback": [
+    {
+      "schema_version": 1,
+      "event_id": "f5aafbe09ac746c4867742e5a3e8269e",
+      "producer_id": "sensor-gateway",
+      "occurred_at": "2026-11-27T09:47:46.029640+00:00",
+      "arrival_id": "r_ae3d1115f57f2bc797138de0c15a11d4_2",
+      "command_id": null,
+      "direction": "exit",
+      "state": "opening",
+      "passage_confirmed": false,
+      "simulation": true,
+      "reason": "controller_reason_3"
+    },
+    {
+      "schema_version": 1,
+      "event_id": "38217568332c41328ed30e849b3475be",
+      "producer_id": "sensor-gateway",
+      "occurred_at": "2026-11-27T09:49:19.502695+00:00",
+      "arrival_id": "r_ae3d1115f57f2bc797138de0c15a11d4_2",
+      "command_id": null,
+      "direction": "exit",
+      "state": "completed",
+      "passage_confirmed": true,
+      "simulation": true,
+      "reason": null
+    }
+  ],
+  "owner_confirmation": "simulated exit passage confirmed; both clear",
+  "physical_movement": false
+}

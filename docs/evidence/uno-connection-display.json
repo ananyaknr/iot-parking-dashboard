@@ -1,0 +1,58 @@
+{
+  "verified_at_utc": "2026-11-27T13:59:37.099909+00:00",
+  "source": "G3 via UNO UART / ESP32 / MQTT",
+  "connected": true,
+  "uno_uptime_advances": true,
+  "samples": [
+    {
+      "uptime_ms": 2880104,
+      "gateway_uptime_ms": 288439,
+      "u1_distance_cm": 16.7,
+      "u1_state": "detected",
+      "u2_distance_cm": 12.5,
+      "u2_state": "detected",
+      "phase": 5,
+      "reason": 7,
+      "servo_enabled": false,
+      "fresh": true
+    },
+    {
+      "uptime_ms": 2881104,
+      "gateway_uptime_ms": 289440,
+      "u1_distance_cm": 16.7,
+      "u1_state": "detected",
+      "u2_distance_cm": 12.4,
+      "u2_state": "detected",
+      "phase": 5,
+      "reason": 7,
+      "servo_enabled": false,
+      "fresh": true
+    },
+    {
+      "uptime_ms": 2882105,
+      "gateway_uptime_ms": 290440,
+      "u1_distance_cm": 16.4,
+      "u1_state": "detected",
+      "u2_distance_cm": 12.5,
+      "u2_state": "detected",
+      "phase": 5,
+      "reason": 7,
+      "servo_enabled": false,
+      "fresh": true
+    }
+  ],
+  "current": {
+    "u1_distance_cm": 16.4,
+    "u1_state": "detected",
+    "u2_distance_cm": 12.5,
+    "u2_state": "detected",
+    "phase": 5,
+    "reason": 7,
+    "servo_enabled": false
+  },
+  "new_ui_served": true,
+  "focused_node_display_checks": "passed",
+  "commands_sent": 0,
+  "firmware_changed": false,
+  "hold_reset": false
+}

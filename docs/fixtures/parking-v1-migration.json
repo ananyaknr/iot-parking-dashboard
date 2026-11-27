@@ -1,0 +1,40 @@
+{
+  "usage": "SYNTHETIC DOCUMENTATION ONLY; refresh UTC timestamps and IDs before isolated tests",
+  "topics": {
+    "arrival": "parking/test/v1/arrival",
+    "command": "parking/test/v1/gate/command",
+    "ack": "parking/test/v1/gate/ack",
+    "feedback": "parking/test/v1/gate/feedback",
+    "feedback_ack": "parking/test/v1/gate/feedback/ack"
+  },
+  "entrance_arrival": {
+    "schema_version": 1, "event_id": "example_arrival_message", "producer_id": "sensor-gateway",
+    "occurred_at": "2026-11-27T13:00:00Z", "arrival_id": "r_example_1",
+    "direction": "entrance", "trigger": "ultrasonic"
+  },
+  "entrance_command": {
+    "schema_version": 1, "event_id": "example_command_message", "producer_id": "teammate",
+    "occurred_at": "2026-11-27T13:00:01Z", "arrival_id": "r_example_1",
+    "command_id": "example_command", "session_id": "TEST_ONLY_NO_SESSION_WRITE", "decision_id": "example_decision",
+    "direction": "entrance", "action": "OPEN", "issued_at": "2026-11-27T13:00:01Z", "expires_at": "2026-11-27T13:00:06Z",
+    "license_plate": "TEST0001", "lcd_plate": "TEST0001", "vehicle_type": "sportcar"
+  },
+  "command_ack": {
+    "schema_version": 1, "event_id": "example_ack_message", "producer_id": "sensor-gateway",
+    "occurred_at": "2026-11-27T13:00:02Z", "arrival_id": "r_example_1",
+    "ack_id": "example_ack", "command_id": "example_command", "state": "accepted", "status": "accepted", "reason": "simulated_open_lcd"
+  },
+  "local_exit_arrival": {
+    "schema_version": 1, "event_id": "example_exit_arrival_message", "producer_id": "sensor-gateway",
+    "occurred_at": "2026-11-27T13:10:00Z", "arrival_id": "r_example_2", "direction": "exit", "trigger": "ultrasonic"
+  },
+  "local_exit_completed_feedback": {
+    "schema_version": 1, "event_id": "example_exit_feedback_message", "producer_id": "sensor-gateway",
+    "occurred_at": "2026-11-27T13:10:10Z", "arrival_id": "r_example_2", "command_id": null,
+    "direction": "exit", "state": "completed", "passage_confirmed": true, "simulation": true, "reason": null
+  },
+  "feedback_ack": {
+    "schema_version": 1, "event_id": "example_feedback_ack_message", "producer_id": "teammate",
+    "occurred_at": "2026-11-27T13:10:11Z", "arrival_id": "r_example_2", "feedback_id": "example_exit_feedback_message", "state": "recorded"
+  }
+}
