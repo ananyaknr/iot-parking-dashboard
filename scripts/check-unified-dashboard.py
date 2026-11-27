@@ -23,7 +23,7 @@ async def check(url):
     async with httpx.AsyncClient(base_url=url, auth=auth, trust_env=False, timeout=20) as client:
         async with AsyncExitStack() as stack:
             async def stream(lane):
-                response = await stack.enter_async_context(client.stream('GET', '/camera/stream', params={'camera': lane}))
+                response = await stack.enter_async_context(client.stream('GET', '/api/camera/stream', params={'camera': lane, 't': 'check'}))
                 response.raise_for_status()
                 if not response.headers.get('content-type', '').startswith('multipart/x-mixed-replace'):
                     raise ValueError('MJPEG required')
@@ -39,27 +39,35 @@ async def check(url):
             # Keep both streams connected while querying Flask and the parking API.
             started = time.monotonic()
             for path in ('/', '/api/latest', '/api/history?source=esp32&field=temperature_c&minutes=1',
-                         '/parking/status', '/parking/history?limit=1', '/api/integration/readiness'):
+                         '/api/parking/status', '/api/parking/history?limit=1', '/api/integration/readiness'):
                 r = await client.get(path)
                 r.raise_for_status()
                 receipt.setdefault('reads_with_two_streams', {})[path] = r.status_code
+                if path == '/':
+                    receipt['merged_dashboard'] = 'data-view="gate"' in r.text and 'data-simulator-commit="no"' in r.text
+                    if not receipt['merged_dashboard']:
+                        raise ValueError('Merged dashboard or safe simulator setting missing')
                 if path == '/api/integration/readiness':
                     receipt['readiness'] = r.json()
-                if path == '/parking/status':
+                if path == '/api/parking/status':
                     receipt['capacity'] = r.json().get('capacity')
             for lane in ('entrance', 'exit'):
-                r = await client.get('/camera/snapshot', params={'camera': lane})
+                r = await client.get('/api/camera/frame', params={'camera': lane})
                 r.raise_for_status()
                 receipt.setdefault('snapshots', {})[lane] = {
                     'jpeg': r.content.startswith(b'\xff\xd8'), 'role': r.headers.get('x-camera-role'), 'http': r.status_code}
                 if not r.content.startswith(b'\xff\xd8') or r.headers.get('x-camera-role') != lane:
                     raise ValueError('Fresh role-specific JPEG required')
             receipt['concurrent_reads_seconds'] = round(time.monotonic() - started, 2)
-        for path in ('/parking/commit', '/parking/sensors', '/api/integration/recognition'):
+        for path in ('/parking/commit', '/api/parking/commit', '/parking/sensors', '/api/integration/recognition'):
             r = await client.post(path, json={})
             if r.status_code != 405:
                 raise ValueError('Write route exposed')
         receipt['write_routes_blocked'] = True
+        r = await client.post('/api/parking/analyze', data={'camera': 'exit'}, headers={'Origin': url.rstrip('/')})
+        if r.status_code != 400:
+            raise ValueError('Analysis validation path unavailable')
+        receipt['analysis_route_validates_missing_image'] = True
     return receipt
 
 

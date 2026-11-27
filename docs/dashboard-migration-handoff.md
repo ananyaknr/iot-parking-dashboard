@@ -1,8 +1,13 @@
 # Windows dashboard migration handoff
 
-Prepared 2026-11-27 (Bangkok), on `feature/parking-full-integration` from
-`fb9e6fc`, against camera repository `7638868`. The upcoming dashboard changes
-have not been pulled or merged. This prepares the connections they can use.
+Updated 2026-11-27 (Bangkok): `feature/dashboard-webapp` at `046e1da` is combined
+with `feature/parking-full-integration` from `fbad74a`, against camera repository
+`7638868`. This is a feature-branch integration, not a merge into main or PR #5 approval.
+
+Open **http://127.0.0.1:8081/#/dashboard**, or **http://127.0.0.1:8081/#/gate**
+for both cameras, capture/upload, crop correction and Gemini/PaddleOCR analysis.
+The session registration button is disabled. Sensor history is on
+`#/admin/vehicles`; devices and G3 telemetry remain live.
 
 ## Which plan applies
 
@@ -39,7 +44,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-unified-dashbo
 
 | Service | Address | Ownership and data |
 |---|---|---|
-| Unified browser entry | `http://127.0.0.1:8081` | Async read-only gateway; root serves existing sensor dashboard |
+| Unified browser entry | `http://127.0.0.1:8081` | Async gateway; combined dashboard, read projections and same-origin analysis |
 | Original sensor backend | `http://127.0.0.1:5000` | Existing production sensor telemetry/history/cloud configuration |
 | G3 sensor backend | `http://127.0.0.1:5001` | Existing isolated hardware simulation, `sensor_test`, existing durable G3 ledger |
 | Camera/parking API | `http://127.0.0.1:8001` | Local simulation; `data/runtime/windows-joint-test/` in camera checkout |
@@ -71,12 +76,14 @@ stop this gateway and use the original 5000/5001 and 8001 URLs. No database or
 firmware downgrade is needed. An intentional `gate-demo.stop` prevents automatic
 restart until its cause is inspected. Do not clear safety holds automatically.
 
-## Routes for the incoming web version
+## Routes used by the combined web version
 
 Use relative same-origin paths in the new sensor dashboard assets. Continue
 shipping its HTML and JS in `dashboard/templates` and `dashboard/static`.
-The gateway intentionally serves the current dashboard until that version lands;
-it does not duplicate the teammate's incoming UI.
+The two UI conflicts were resolved using the dashboard branch's G3-aware files.
+The integration adds API aliases, permits `blob:` images for capture/crops,
+corrects exit Gemini timing/model display and G3 device freshness, and replaces
+automatic sample parking records with Unknown/offline projections.
 
 | Browser GET path | Source / UI guidance |
 |---|---|
@@ -89,6 +96,9 @@ it does not duplicate the teammate's incoming UI.
 | `/parking/history?limit=30` | Teammate's unchanged history projection |
 | `/parking/media/{uuid}` | Teammate's photo route; keep its UUID rather than filesystem/Storage URLs |
 | `/api/integration/readiness` | Sanitized service/freshness/isolation status, no capture or AI work |
+| `/api/camera/stream?camera=entrance` or `exit` | Combined UI alias for async stream; accepts its `t` cache-buster and `probe=1` |
+| `/api/camera/frame?camera=entrance` or `exit` | Combined UI alias for fresh snapshot |
+| `/api/parking/status`, `/api/parking/history`, `/api/parking/media/{uuid}` | Combined UI aliases for authoritative reads |
 
 Readiness separates fresh telemetry from `gate_cycle_ready`. A latched hold can
 report fresh sensor data while `gate_cycle_ready:false`; `gate_phase_code` and
@@ -114,10 +124,14 @@ setting it to `yes` also protects streams and photos. Credentials are read only
 server-side. Upstreams are fixed loopback addresses; user-supplied proxy URLs,
 redirects and remote clients are rejected. No CORS relaxation is needed.
 
-**All POST requests and unknown routes are blocked.** In particular, the combined
-dashboard cannot invoke `/parking/commit`, `/parking/sensors`, `/parking/analyze`
-or the synthetic recognition endpoint. Operator review will need an agreed API,
-role checks and same-origin/CSRF protection before exposing write routes. The
+**Only POST `/api/parking/analyze` is enabled**, with a matching Origin,
+same-origin fetch check, shared authentication and bounded upload. It forwards
+to the existing Flask multipart/schema validation before the camera API. This
+saves an observation in isolated test storage; it does not command a gate or
+change a session. Both `/parking/commit` and `/api/parking/commit`, sensor
+mutation, raw `/parking/analyze` and synthetic recognition remain blocked.
+`PARKING_SIMULATOR_COMMIT=no` is also the Flask default and local configuration.
+Future operator session/reconciliation actions still need the agreed API. The
 standalone 8001 diagnostics page retains its existing behavior; do not use its
 instant registration button as passage evidence.
 
@@ -158,6 +172,17 @@ schema, session rows or Supabase state was modified during this preparation.
 
 ## Actual verification
 
+Current [combined UI connection receipt](evidence/combined-dashboard-readiness.json):
+merged page with registration disabled, both aliased MJPEG streams, both fresh
+lane-correct snapshots, live sensors/history and parking reads all passed.
+The same-origin analysis endpoint rejected a missing image with 400, confirming
+its validation path without an OCR call. Session write attempts returned 405.
+Four focused gateway tests and 17 affected Flask web/proxy tests passed;
+JavaScript syntax and rendered element references were checked. No automated
+browser run or new real-image OCR/gate-cycle test was performed in this merge.
+
+The earlier connection preparation below is retained as a separate checkpoint.
+
 [Sanitized connection receipt](evidence/dashboard-migration-readiness.json):
 
 - Both proxied streams returned MJPEG with JPEG data, and both fresh snapshots
@@ -182,7 +207,7 @@ passed. This is a short connection check, not a sustained multi-tab load test.
 The UNO currently reports a latched `hold` / `sensor_unknown` from an earlier
 reading, while both sensors now read clear. No reset or movement was sent. A
 supervised reset and three joint entrance/duplicate/exit tests remain for the
-approved passage-aware worker and incoming UI. Earlier firmware evidence is
+approved passage-aware worker. Earlier firmware evidence is
 reused; no hardware diagnostics or full regression suite was rerun.
 
 To run only the new gateway tests, using the camera service's existing packages:

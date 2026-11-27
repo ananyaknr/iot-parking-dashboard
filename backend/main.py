@@ -136,7 +136,7 @@ def main():
                 "sources": sources}
 
     app = create_app(latest, influx.query_api(), bucket, org, cloud=cloud,gate_events=events,recognition=recognition)
-    server = create_server(app, host="127.0.0.1", port=int(os.environ.get("DASHBOARD_PORT", "5000")), threads=4)
+    server = create_server(app, host="127.0.0.1", port=int(os.environ.get("DASHBOARD_PORT", "5000")), threads=8)
     threading.Thread(target=server.run, daemon=True).start()
     log.info("Dashboard listening on http://127.0.0.1:%s", os.environ.get("DASHBOARD_PORT", "5000"))
     for sig in (signal.SIGINT, signal.SIGTERM):

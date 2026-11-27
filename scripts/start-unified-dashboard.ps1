@@ -88,6 +88,6 @@ if (-not (Test-LocalPort $Port)) {
         throw "Port $Port is occupied; refusing to replace an unrelated application. Choose -Port."
     }
 }
-Write-Host "Unified read-only dashboard: http://127.0.0.1:$Port"
+Write-Host "Combined dashboard: http://127.0.0.1:$Port/#/dashboard"
 Write-Host "Readiness: http://127.0.0.1:$Port/api/integration/readiness"
-Write-Host 'Camera API and isolated G3 sensor backend stay separate. No parking writer or physical servo is enabled.'
+Write-Host 'Live cameras, sensors and photo analysis connected. Session writes and physical servo stay disabled.'

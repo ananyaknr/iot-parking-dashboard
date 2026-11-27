@@ -17,7 +17,8 @@ let step = 'launch';
       password:env.DASHBOARD_PASSWORD || env.GRAFANA_PASSWORD}});
     const errors=[];page.on('pageerror',error=>errors.push(error.message));
     step = 'local dashboard';
-    await page.goto('http://127.0.0.1:'+(isolated?'5001':'5000'));
+    // History controls live on the History page of the web app.
+    await page.goto('http://127.0.0.1:'+(isolated?'5001':'5000')+'/#/admin/vehicles');
     await page.waitForFunction(()=>charts.length===6 && !historyBusy);
     await page.selectOption('#range','30');
     await page.waitForFunction(()=>!historyBusy);

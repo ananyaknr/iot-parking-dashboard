@@ -1,0 +1,83 @@
+{
+  "occurred_at": "2026-11-27T13:44:12.043816+00:00",
+  "parking_commits": 0,
+  "mqtt_commands": 0,
+  "images_saved": false,
+  "streams": {
+    "entrance": {
+      "http": 200,
+      "jpeg": true
+    },
+    "exit": {
+      "http": 200,
+      "jpeg": true
+    }
+  },
+  "reads_with_two_streams": {
+    "/": 200,
+    "/api/latest": 200,
+    "/api/history?source=esp32&field=temperature_c&minutes=1": 200,
+    "/api/parking/status": 200,
+    "/api/parking/history?limit=1": 200,
+    "/api/integration/readiness": 200
+  },
+  "merged_dashboard": true,
+  "capacity": {
+    "vip": {
+      "total": 2,
+      "occupied": 0,
+      "available": 2
+    },
+    "normal": {
+      "total": 3,
+      "occupied": 0,
+      "available": 3
+    }
+  },
+  "readiness": {
+    "mode": "inspection_simulation",
+    "sensor_service_ready": true,
+    "parking_service_ready": true,
+    "parking_storage": "local",
+    "gate_mode": "simulation",
+    "gate_telemetry_fresh": true,
+    "gate_cycle_ready": false,
+    "gate_phase_code": 5,
+    "gate_reason_code": 7,
+    "environment_fresh": true,
+    "pending_feedback": 0,
+    "mqtt_prefix": "parking/test/v1",
+    "session_writes_enabled": false,
+    "session_workflow": "pending_teammate_passage_aware_api",
+    "camera_check": "Open each stream or request a fresh snapshot; health does not capture images"
+  },
+  "snapshots": {
+    "entrance": {
+      "jpeg": true,
+      "role": "entrance",
+      "http": 200
+    },
+    "exit": {
+      "jpeg": true,
+      "role": "exit",
+      "http": 200
+    }
+  },
+  "concurrent_reads_seconds": 6.36,
+  "write_routes_blocked": true,
+  "analysis_route_validates_missing_image": true,
+  "focused_gateway_tests": {
+    "passed": 4,
+    "failed": 0
+  },
+  "affected_web_tests": {
+    "passed": 17,
+    "failed": 0
+  },
+  "js_syntax": "passed",
+  "rendered_element_references": "passed",
+  "dashboard_branch": "046e1da",
+  "camera_checkout": "7638868",
+  "firmware_changed": false,
+  "teammate_source_changed": false
+}

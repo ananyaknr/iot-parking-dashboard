@@ -1,4 +1,4 @@
-"""Loopback, read-only async gateway; streams never occupy Flask worker threads."""
+"""Loopback inspection gateway; session writes are blocked and streams bypass Flask."""
 import asyncio
 import base64
 from contextlib import asynccontextmanager
@@ -13,10 +13,12 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 SENSOR_READS = {'/', '/health', '/api/latest', '/api/history',
                 '/api/cloud/history', '/api/gate/events'}
 CAMERA_READS = {'/camera/stream', '/camera/snapshot', '/parking/status', '/parking/history'}
+ALIASES = {'/api/camera/stream': '/camera/stream', '/api/camera/frame': '/camera/snapshot',
+           '/api/parking/status': '/parking/status', '/api/parking/history': '/parking/history'}
 MEDIA = re.compile(r'/parking/media/[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\Z')
 HEADERS = {'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff',
            'X-Frame-Options': 'DENY',
-           'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'"}
+           'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: blob:; frame-ancestors 'none'"}
 
 
 def local_url(value):
@@ -54,8 +56,6 @@ def create_gateway(sensor_url, parking_url, *, username='', password='', auth_re
         if (not request.client or request.client.host not in ('127.0.0.1', '::1')
                 or request.url.hostname not in ('127.0.0.1', 'localhost', '::1')):
             return JSONResponse({'error': 'Loopback access only'}, 403)
-        if request.method not in ('GET', 'HEAD'):
-            return JSONResponse({'error': 'Read-only migration gateway'}, 405, headers=HEADERS)
         if auth_required:
             try:
                 scheme, token = request.headers.get('authorization', '').split(' ', 1)
@@ -66,6 +66,12 @@ def create_gateway(sensor_url, parking_url, *, username='', password='', auth_re
                 valid = False
             if not valid:
                 return Response(status_code=401, headers={**HEADERS, 'WWW-Authenticate': 'Basic realm="Parking monitor"'})
+        if request.method not in ('GET', 'HEAD'):
+            if request.method != 'POST' or request.url.path != '/api/parking/analyze':
+                return JSONResponse({'error': 'Parking session writes are disabled'}, 405, headers=HEADERS)
+            if (request.headers.get('origin') != str(request.base_url).rstrip('/')
+                    or request.headers.get('sec-fetch-site', 'same-origin') not in ('same-origin', 'none')):
+                return JSONResponse({'error': 'Same-origin analysis required'}, 403, headers=HEADERS)
         response = await next_handler(request)
         for key, value in HEADERS.items():
             response.headers[key] = value
@@ -87,7 +93,7 @@ def create_gateway(sensor_url, parking_url, *, username='', password='', auth_re
         gate = (sensors or {}).get('parking3', {})
         telemetry = gate.get('telemetry') or {}
         healthy = bool(sensors and sensors.get('mqtt_connected') and sensors.get('storage_connected'))
-        return {'mode': 'read_only_simulation', 'sensor_service_ready': healthy,
+        return {'mode': 'inspection_simulation', 'sensor_service_ready': healthy,
                 'parking_service_ready': bool(parking and parking.get('database') == 'ready'),
                 'parking_storage': (parking or {}).get('storage', 'unknown'),
                 'gate_mode': (parking or {}).get('gate_mode', 'unknown'),
@@ -103,27 +109,51 @@ def create_gateway(sensor_url, parking_url, *, username='', password='', auth_re
                 'session_workflow': 'pending_teammate_passage_aware_api',
                 'camera_check': 'Open each stream or request a fresh snapshot; health does not capture images'}
 
-    @app.api_route('/{path:path}', methods=['GET', 'HEAD'])
+    @app.api_route('/{path:path}', methods=['GET', 'HEAD', 'POST'])
     async def proxy(request: Request, path: str):
-        route = '/' + path
+        browser_route = '/' + path
+        analysis = browser_route == '/api/parking/analyze' and request.method == 'POST'
+        route = ALIASES.get(browser_route, browser_route)
+        if browser_route.startswith('/api/parking/media/'):
+            route = browser_route[4:]
         sensor = route in SENSOR_READS or (route.startswith('/static/') and '..' not in path and '\\' not in path)
         camera = route in CAMERA_READS or MEDIA.fullmatch(route)
-        if not sensor and not camera:
+        if not sensor and not camera and not analysis:
             return JSONResponse({'error': 'Route unavailable in read-only migration'}, 404)
+        query = request.url.query
         if route.startswith('/camera/'):
-            if (set(request.query_params) - {'camera'} or len(request.query_params.getlist('camera')) > 1
+            allowed = {'camera', 't', 'probe'} if browser_route == '/api/camera/stream' else {'camera'}
+            if (set(request.query_params) - allowed or len(request.query_params.getlist('camera')) > 1
                     or request.query_params.get('camera', 'entrance') not in ('entrance', 'exit')):
                 return JSONResponse({'error': 'Use camera=entrance or camera=exit'}, 400)
+            if request.query_params.get('probe'):
+                return JSONResponse({'busy': False, 'transport': 'async'})
+            query = 'camera=' + request.query_params.get('camera', 'entrance')
+        if analysis:
+            # Keep the existing Flask multipart/schema validation and same-origin checks.
+            sensor = True
         base = sensor_url if sensor else parking_url
         url = base + route
-        if request.url.query:
-            url += '?' + request.url.query
+        if query:
+            url += '?' + query
         headers = {'Authorization': upstream_auth} if sensor else {}
+        content = None
+        if analysis:
+            content = bytearray()
+            async for chunk in request.stream():
+                content.extend(chunk)
+                if len(content) > 15 * 1024 * 1024 + 64 * 1024:
+                    return JSONResponse({'error': 'Photo upload too large'}, 413)
+            content = bytes(content)
+            headers.update({'Content-Type': request.headers.get('content-type', ''),
+                            'Host': request.headers['host'], 'Origin': request.headers['origin'],
+                            'Sec-Fetch-Site': 'same-origin'})
         stream = route == '/camera/stream'
         client = app.state.streams if stream else app.state.regular
         response = None
         try:
-            response = await client.send(client.build_request(request.method, url, headers=headers), stream=True)
+            response = await client.send(client.build_request(request.method, url, headers=headers,
+                content=content, timeout=75 if analysis else 15), stream=True)
             if 300 <= response.status_code < 400:
                 await response.aclose()
                 return JSONResponse({'error': 'Unexpected upstream redirect'}, 502)

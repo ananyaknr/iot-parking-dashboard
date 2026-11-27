@@ -2,12 +2,14 @@
 
 ## Sensor and gate integration handoff
 
-The single-origin migration connection is prepared at **http://127.0.0.1:8081**.
+The combined dashboard is running at **http://127.0.0.1:8081/#/dashboard**.
 See [migration startup, frontend routes and remaining API work](docs/dashboard-migration-handoff.md).
-It serves the existing sensor dashboard plus authenticated camera streams,
+It combines `feature/dashboard-webapp` at `046e1da` with PR #5's G3 backend,
+serving the new dashboard plus authenticated camera streams,
 fresh snapshots and read-only parking status/history/media. Both streams and
 sensor/history reads passed together; environment and G3 telemetry are fresh.
-The incoming dashboard panels are still teammate work. Parking writers remain
+Capture/upload, crop correction and photo analysis use the same browser address.
+Parking writers remain
 off until the passage-aware API is published; servo output stays disabled.
 
 The minimum joint HTTP bridge is now available: see
@@ -128,6 +130,32 @@ existing setup scripts; never commit tokens. Cloud is Free Plan only, with
 `parking_sensor_data` and `parking_sensor_test` each retained for 30 days. Keep
 test data in test buckets and the servo disconnected. Production migration and
 merge require approval.
+
+## Combined web app dashboard
+
+Open http://127.0.0.1:8081 for the combined single-page web app (no CDN),
+with G3 entrance/exit and separately labeled historical G2:
+
+| Page | Route | Data |
+|---|---|---|
+| Cover | `#/` | — |
+| Live dashboard | `#/dashboard` | Parking bays · G3 entrance/exit · historical G2 · recognition · environment · cloud |
+| Gate operation | `#/gate` | Both live cameras, capture/upload, plate crop and analysis; session commit disabled |
+| Today / History | `#/admin`, `#/admin/vehicles` | Visits, decisions, charts, CSV, plus the six sensor history charts |
+| Gate decisions · Parking spaces · Devices | `#/admin/review`, `#/admin/slots`, `#/admin/devices` | Ledger, bays, devices and live MQTT topics |
+
+The browser uses the async gateway on 8081. `/api/camera/*` and parking reads
+go directly to the isolated FastAPI API on 8001; streams bypass Flask workers.
+Only same-origin `/api/parking/analyze` POST is enabled through Flask validation.
+`PARKING_API_URL` defaults to `http://127.0.0.1:8001`, and
+`PARKING_SIMULATOR_COMMIT` defaults to `no`. Unreachable parking data becomes
+Unknown, without illustrative visits; sensor and gate cards remain independent.
+
+Run it:
+
+1. Run `scripts/start-unified-dashboard.ps1`, then open http://127.0.0.1:8081/#/dashboard.
+2. Use `#/gate` for both camera previews and recognition, and `#/admin/vehicles` for visits and sensor history.
+3. See [startup, connection checks and current boundaries](docs/dashboard-migration-handoff.md).
 
 Native Windows deployment: **UNO → UART → ESP32 → Wi-Fi → authenticated Mosquitto → Python/Flask → InfluxDB OSS 2.x → local dashboard**.
 

@@ -58,6 +58,28 @@ class GatewayTests(unittest.TestCase):
             self.assertFalse(ready['gate_cycle_ready'])
             self.assertFalse(ready['session_writes_enabled'])
 
+    def test_dashboard_aliases_and_same_origin_analysis(self):
+        with TestClient(self.app, base_url='http://127.0.0.1', client=('127.0.0.1', 50000)) as c:
+            for path, upstream in (('/api/parking/status','/parking/status'),
+                                   ('/api/parking/history?limit=30','/parking/history'),
+                                   ('/api/camera/frame?camera=entrance','/camera/snapshot'),
+                                   ('/api/camera/stream?camera=exit&t=123','/camera/stream')):
+                self.assertEqual(c.get(path, headers=self.auth).status_code, 200)
+                self.assertEqual(self.calls[-1].url.path, upstream)
+                self.assertEqual(self.calls[-1].url.port, 8001)
+            self.assertFalse(c.get('/api/camera/stream?camera=exit&probe=1',headers=self.auth).json()['busy'])
+            before = len(self.calls)
+            for origin in ('https://other.example', None):
+                h = {**self.auth, **({'Origin':origin} if origin else {})}
+                self.assertEqual(c.post('/api/parking/analyze',headers=h).status_code, 403)
+            self.assertEqual(len(self.calls), before)
+            h = {**self.auth, 'Origin':'http://127.0.0.1'}
+            self.assertEqual(c.post('/api/parking/analyze',headers=h,files={'image':('test.jpg',b'TEST','image/jpeg')},data={'camera':'exit'}).status_code,200)
+            self.assertEqual(self.calls[-1].url.port, 5001)
+            self.assertEqual(self.calls[-1].headers['origin'], 'http://127.0.0.1')
+            self.assertIn(b'filename="test.jpg"', self.calls[-1].content)
+            self.assertEqual(c.post('/api/parking/commit',headers=h,json={}).status_code,405)
+
     def test_outage_is_explicit_and_upstream_is_fixed(self):
         def offline(request):
             raise httpx.ConnectError('offline')
