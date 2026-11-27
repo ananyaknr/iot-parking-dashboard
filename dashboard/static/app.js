@@ -6,7 +6,23 @@ let latestData=null; // last successful /api/latest payload, shared by every vie
 /* ===================== Live dashboard: gate v2 + environment ===================== */
 function reading(source,key,suffix='',digits=1){return source.fresh&&source.payload_valid&&source[key+'_valid']&&Number.isFinite(source[key])?source[key].toFixed(digits)+suffix:'Unknown';}
 function zone(id,value){$(id).textContent={clear:'Clear',detected:'Detected',unknown:'Unknown'}[value]||'Unknown';$(id).className='state '+(value==='clear'?'available':value==='detected'?'occupied':'unknown');}
-function unavailable(){for(const id of ['gate-sim-state','u1-state','u2-state','u1-distance','u2-distance','servo-status','arrivals','passages','temperature','humidity','light','gas','vibration-count'])$(id).textContent='Unknown';$('gate-sim-state').className='state unknown';$('u1-state').className='state unknown';$('u2-state').className='state unknown';$('gate-event').textContent='No current gate telemetry';$('license-plate').textContent='Unavailable';$('vehicle-type').textContent='UNKNOWN';$('recognition-time').textContent='Unavailable';$('recognition-status').textContent='Unavailable';}
+/* G3 entrance/exit controller (sensor team's parking v1 simulation). Display only. */
+const P3_PHASE=['Boot / check zones','Closed · simulation','Entrance authorization wait','Open · simulation','Closing · simulation','Hold / supervised review'];
+const P3_CLASS=['unknown','available','pending','available','pending','occupied'];
+function renderG3(parking3,p3){
+  const cm=v=>v===null||v===undefined?'No echo':v+' cm';
+  $('parking3-badge').textContent=parking3.enabled?'G3 · isolated simulation · Servo disconnected':'G3 · not enabled on this run';
+  $('parking3-status').textContent=p3?(P3_PHASE[p3.phase]||'Unknown'):parking3.enabled?'Waiting for fresh entrance/exit telemetry':'Not enabled';
+  $('parking3-status').className='state '+(p3?(P3_CLASS[p3.phase]||'unknown'):'unknown');
+  $('parking3-detail').textContent=p3?`Direction: ${['none','entrance','exit','manual'][p3.lane]||'unknown'} · Cycle ${p3.cycle} · U1 ${cm(p3.u1_distance_cm)} · U2 ${cm(p3.u2_distance_cm)} · Minimum ${p3.minimum_open_ms/1000}s · Servo disabled`:'New G3 data stays separate from historical G2 passages';
+  $('p3-direction').textContent=p3?(['None','Entrance','Exit','Manual'][p3.lane]||'Unknown'):'—';
+  $('p3-cycle').textContent=p3?String(p3.cycle):'—';
+  $('p3-u1').textContent=p3?cm(p3.u1_distance_cm):'—';$('p3-u2').textContent=p3?cm(p3.u2_distance_cm):'—';
+  $('p3-minimum').textContent=p3?(p3.minimum_open_ms/1000)+' s':'—';
+  $('p3-feedback').textContent=parking3.enabled?String(parking3.pending_feedback||0):'—';
+  $('parking3-command').textContent=`Command receipt: ${parking3.command_outcome||'none'} · Feedback awaiting receipt: ${parking3.pending_feedback||0} · Session matching/release: teammate owned`;
+}
+function unavailable(){renderG3({},null);for(const id of ['gate-sim-state','u1-state','u2-state','u1-distance','u2-distance','servo-status','arrivals','passages','temperature','humidity','light','gas','vibration-count'])$(id).textContent='Unknown';$('gate-sim-state').className='state unknown';$('u1-state').className='state unknown';$('u2-state').className='state unknown';$('gate-event').textContent='No current gate telemetry';$('license-plate').textContent='Unavailable';$('vehicle-type').textContent='UNKNOWN';$('recognition-time').textContent='Unavailable';$('recognition-status').textContent='Unavailable';}
 async function live(){try{const r=await fetch('/api/latest',{cache:'no-store'});if(!r.ok)throw Error();const d=await r.json(),g=d.sources.gate||{},e=d.sources.esp32||{},cloud=d.cloud||{};
 const usable=g.fresh&&g.payload_valid;
 $('gate-sim-state').textContent=usable?({boot_wait:'Checking zones',closed:'Closed · simulation',authorization_wait:'Waiting for authorization',open_wait:'Open · simulation',passing:'Vehicle passing · simulation',closing:'Closing · simulation',hold:'Hold / supervised review'}[g.gate_sim_state]||'Unknown'):'Unknown';
@@ -18,7 +34,9 @@ $('arrivals').textContent=reading(g,'arrival_count','',0);$('passages').textCont
 $('gate-event').textContent=usable?('Latest event · '+(g.last_event||'unknown').replaceAll('_',' ')+' · '+new Date(g.last_received_utc).toLocaleTimeString()):'Waiting for fresh gate-v2 telemetry';
 $('temperature').textContent=reading(e,'temperature_c',' °C');$('humidity').textContent=reading(e,'humidity_pct',' %');$('light').textContent=reading(e,'light_raw','',0);$('gas').textContent=reading(e,'gas_raw','',0);
 $('vibration-count').textContent=reading(g,'vibration_transition_count','',0);$('vibration-raw').textContent='Raw level '+(usable&&g.vibration_raw_valid?(g.vibration_raw?'High':'Low'):'unknown')+' · Polarity unverified';
-const recognition=d.recognition||{},test=recognition.origin==='synthetic',hasResult=!!recognition.license_plate;
+const parking3=d.parking3||{},p3=parking3.fresh?parking3.telemetry:null;renderG3(parking3,p3);
+if(p3){$('vibration-count').textContent=p3.vibration_transition_count;$('vibration-raw').textContent=`Raw level ${p3.vibration_raw?'High':'Low'} · Polarity unverified · G3`;}
+const recognition=parking3.recognition?{status:'authorized_simulation',...parking3.recognition}:d.recognition||{},test=recognition.origin==='synthetic',hasResult=!!recognition.license_plate;
 $('recognition-status').textContent=test?'Test recognition · synthetic':(recognition.status||'Not configured').replaceAll('_',' ');
 $('license-plate').textContent=hasResult?recognition.license_plate:'Unavailable';$('vehicle-type').textContent=hasResult?(recognition.vehicle_type||'unknown').toUpperCase():'UNKNOWN';
 $('recognition-time').textContent=recognition.occurred_at?new Date(recognition.occurred_at).toLocaleString():'Unavailable';
@@ -278,11 +296,13 @@ const secs=v=>v==null||!Number.isFinite(Number(v))?'—':(Number(v)/1000).toFixe
 function gStatus(text,state){const el=$('g-status');el.textContent=text;el.dataset.state=state||'';}
 function gError(text){$('g-error').textContent=text||'';$('g-error').hidden=!text;}
 function gSteps(n){document.querySelectorAll('#g-steps li').forEach(li=>{const s=+li.dataset.step;li.className=s<n?'done':s===n?'on':'';});}
+const SIM_COMMIT=document.body.dataset.simulatorCommit!=='no';
+if(!SIM_COMMIT){$('g-commit').textContent='Simulator commit off';$('g-sim-note').textContent='Simulator commit is turned off (PARKING_SIMULATOR_COMMIT=no). Entry and exit are recorded by the passage-aware gate workflow.';}
 function gControls(){
   $('g-capture').disabled=G.busy;$('g-file').disabled=G.busy;$('g-reset').disabled=G.busy;
   document.querySelectorAll('#dir-seg button').forEach(b=>{b.disabled=G.busy;});
   $('g-read').disabled=G.busy||!G.blob||G.registered;$('g-read').textContent=G.box?'Read selected plate':'Analyze photo';
-  $('g-commit').disabled=G.busy||!G.fresh||!G.obs||G.registered||usingSample;
+  $('g-commit').disabled=!SIM_COMMIT||G.busy||!G.fresh||!G.obs||G.registered||usingSample;
   document.querySelectorAll('.cam-card').forEach(c=>c.classList.toggle('selected',c.dataset.camera===G.dir));
 }
 /* --- live previews: one fresh still per camera about once a second, paused while capturing --- */

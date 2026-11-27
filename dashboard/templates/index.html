@@ -9,7 +9,7 @@
 <script defer src="/static/demo-data.js"></script>
 <script defer src="/static/app.js"></script>
 </head>
-<body>
+<body data-simulator-commit="{{ 'yes' if simulator_commit else 'no' }}">
 
 <!-- ============================== COVER ============================== -->
 <section class="view cover" data-view="cover" aria-labelledby="cover-title">
@@ -112,7 +112,21 @@
         </article>
       </div>
 
-      <div class="section-heading"><h2 id="gate-heading">Barrier gate</h2><span class="badge warning">SIMULATION · Servo disconnected</span></div>
+      <div class="section-heading"><h2 id="parking3-heading">Entrance / exit</h2><span class="badge warning" id="parking3-badge">G3 · isolated simulation · Servo disconnected</span></div>
+      <article class="card g3-card" aria-live="polite">
+        <div class="g3-main"><div class="card-label">ENTRANCE / EXIT CONTROLLER · G3</div><div id="parking3-status" class="state unknown">Waiting for separate entrance/exit telemetry</div><p id="parking3-detail">No physical movement or session release</p></div>
+        <dl class="g3-stats">
+          <div><dt>Direction</dt><dd id="p3-direction">—</dd></div>
+          <div><dt>Cycle</dt><dd id="p3-cycle">—</dd></div>
+          <div><dt>U1 · entrance</dt><dd id="p3-u1">—</dd></div>
+          <div><dt>U2 · exit</dt><dd id="p3-u2">—</dd></div>
+          <div><dt>Minimum open</dt><dd id="p3-minimum">—</dd></div>
+          <div><dt>Feedback awaiting receipt</dt><dd id="p3-feedback">—</dd></div>
+        </dl>
+        <p class="g3-command" id="parking3-command">Command receipt unavailable</p>
+      </article>
+
+      <div class="section-heading"><h2 id="gate-heading">Barrier gate · G2 arrival / passage</h2><span class="badge warning">SIMULATION · Servo disconnected</span></div>
       <div class="parking-grid">
         <article class="card slot"><div class="card-label">SIMULATED GATE STATE</div><div id="gate-sim-state" class="state unknown">Unknown</div><div class="slot-detail"><span>Servo</span><strong id="servo-status">Unknown</strong></div><p id="gate-event">Waiting for gate-v2 telemetry</p></article>
         <article class="card slot"><div class="card-label">U1 · APPROACH ZONE</div><div id="u1-state" class="state unknown">Unknown</div><div class="slot-detail"><span>Distance</span><strong id="u1-distance">Unknown</strong></div><p>Unknown or no echo is never clear</p></article>
@@ -187,8 +201,9 @@
           <p class="g-error" id="g-error" hidden></p>
           <div class="recog-actions">
             <button type="button" class="btn btn-outline" id="g-read" disabled>Analyze photo</button>
-            <button type="button" class="btn btn-primary" id="g-commit" disabled>Check gate &amp; register</button>
+            <button type="button" class="btn btn-primary" id="g-commit" disabled>Register now · simulator</button>
           </div>
+          <p class="sim-note" id="g-sim-note">Simulator: allocates or releases a bay immediately, without waiting for a confirmed gate passage.</p>
           <div class="decision" id="g-decision" hidden><strong id="g-decision-title"></strong><span id="g-decision-detail"></span></div>
         </article>
       </div>

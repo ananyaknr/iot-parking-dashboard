@@ -45,10 +45,24 @@ def create_app(latest, query_api, bucket, org, cloud=None,gate_events=None,recog
                 static_folder=str(ROOT / "dashboard" / "static"))
     app.config["MAX_CONTENT_LENGTH"] = 4096
 
+    def same_origin():
+        """Reject state changes started by another site (CSRF), even with login disabled."""
+        if request.headers.get("Sec-Fetch-Site", "same-origin") not in ("same-origin", "none"):
+            return False
+        origin = request.headers.get("Origin")
+        return origin is None or origin == request.host_url.rstrip("/")
+
+    def simulator_commit_enabled():
+        # Instant HTTP commit allocates/releases a bay without confirmed passage.
+        # Keep it for the bench demo; set no once the passage-aware workflow runs.
+        return os.environ.get("PARKING_SIMULATOR_COMMIT", "yes") != "no"
+
     @app.before_request
     def authenticate():
         if request.path == "/health":
             return None
+        if request.method not in ("GET", "HEAD", "OPTIONS") and not same_origin():
+            return jsonify(error="Cross-site requests are not accepted"), 403
         if request.path == "/api/parking/analyze":
             # Photos for recognition are the only large request bodies this dashboard accepts.
             request.max_content_length = UPLOAD_LIMIT + 64 * 1024
@@ -72,7 +86,7 @@ def create_app(latest, query_api, bucket, org, cloud=None,gate_events=None,recog
 
     @app.get("/")
     def dashboard():
-        return render_template("index.html")
+        return render_template("index.html", simulator_commit=simulator_commit_enabled())
 
     @app.get("/health")
     def health():
@@ -262,6 +276,8 @@ def create_app(latest, query_api, bucket, org, cloud=None,gate_events=None,recog
 
     @app.post("/api/parking/commit")
     def parking_commit():
+        if not simulator_commit_enabled():
+            return jsonify(error="Simulator commit is disabled (PARKING_SIMULATOR_COMMIT=no)"), 403
         body = request.get_json(silent=True) or {}
         observation_id, request_id = body.get("observation_id"), body.get("request_id")
         if not isinstance(observation_id, str) or not UUID_RE.fullmatch(observation_id):

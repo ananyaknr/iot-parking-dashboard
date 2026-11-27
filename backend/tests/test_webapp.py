@@ -86,6 +86,23 @@ class ParkingProxyTests(unittest.TestCase):
         self.headers={"Authorization":"Basic "+base64.b64encode(b"demo:test-only-password").decode()}
     def tearDown(self):self.env.stop()
 
+    def test_state_changes_must_be_same_origin(self):
+        body={"observation_id":"00000000-0000-0000-0000-000000000000","request_id":"r1"}
+        for headers in ({"Origin":"https://evil.example"},{"Sec-Fetch-Site":"cross-site"}):
+            response=self.client.post("/api/parking/commit",json=body,headers={**self.headers,**headers})
+            self.assertEqual(response.status_code,403)
+        with patch.dict(os.environ,{"DASHBOARD_AUTH_REQUIRED":"no"}):
+            self.assertEqual(self.client.post("/api/parking/analyze",headers={"Origin":"https://evil.example"}).status_code,403)
+        ok=self.client.post("/api/parking/commit",json=body,headers={**self.headers,"Origin":"http://localhost","Sec-Fetch-Site":"same-origin"})
+        self.assertEqual(ok.status_code,503)
+
+    def test_simulator_commit_switch(self):
+        body={"observation_id":"00000000-0000-0000-0000-000000000000","request_id":"r1"}
+        self.assertIn('data-simulator-commit="yes"',self.client.get("/",headers=self.headers).get_data(as_text=True))
+        with patch.dict(os.environ,{"PARKING_SIMULATOR_COMMIT":"no"}):
+            self.assertEqual(self.client.post("/api/parking/commit",json=body,headers=self.headers).status_code,403)
+            self.assertIn('data-simulator-commit="no"',self.client.get("/",headers=self.headers).get_data(as_text=True))
+
     def test_requires_auth(self):
         for path in ("/api/parking/status","/api/parking/history","/api/parking/media/00000000-0000-0000-0000-000000000000"):
             self.assertEqual(self.client.get(path).status_code,401)

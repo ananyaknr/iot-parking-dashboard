@@ -527,3 +527,16 @@ body.lb-open{overflow:hidden}
 .recognition{display:grid;grid-template-columns:2fr 1fr 1fr;gap:20px}.recognition strong{display:block;overflow-wrap:anywhere;font-size:1.2rem;margin-top:8px}.recognition p{grid-column:1/-1;margin:0}
 #environment-heading + span + .sensor-grid,.sensor-grid.env5{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
 @media(max-width:600px){.recognition,.gate-counts{grid-template-columns:1fr}}
+
+/* G3 entrance/exit controller */
+.state.pending{color:#b7791f}
+.g3-card{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.6fr);gap:8px 28px;align-items:start}
+.g3-main .state{margin:16px 0 8px;font-size:1.55rem}.g3-main p{font-size:.84rem}
+.g3-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0}
+.g3-stats div{background:#f5f8fc;border:1px solid #e6edf6;border-radius:10px;padding:11px 13px}
+.g3-stats dt{font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;font-weight:650;color:var(--muted)}
+.g3-stats dd{margin:5px 0 0;font-size:1.08rem;font-weight:700;color:var(--navy-800)}
+.g3-command{grid-column:1/-1;margin:6px 0 0;padding-top:13px;border-top:1px solid #edf0f5;font-size:.84rem}
+.sim-note{margin:10px 0 0;font-size:.8rem;color:#8a5600;background:var(--amber-bg);border-radius:8px;padding:8px 11px}
+@media(max-width:1000px){.g3-card{grid-template-columns:1fr}}
+@media(max-width:600px){.g3-stats{grid-template-columns:1fr 1fr}}

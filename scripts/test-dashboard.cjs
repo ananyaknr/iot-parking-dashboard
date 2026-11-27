@@ -21,6 +21,7 @@ const server = http.createServer((req,res) => {
       storage_connected:false,ingestion_connected:true,storage_backlog:10,
       cloud:{enabled:true,pending:12,staging:0,uploaded:3,dropped:0,failures:failCloud?1:0,
         error:failCloud?'network_error':null,last_success_utc:'2026-11-26T00:00:00Z'},
+      parking3:{enabled:true,fresh:true,telemetry:{phase:2,lane:1,cycle:4,u1_distance_cm:12,u2_distance_cm:null,minimum_open_ms:8000,vibration_raw:0,vibration_transition_count:3,servo_enabled:false},recognition:null,command_outcome:'accepted',pending_feedback:1,session_release:'teammate_owned'},
       recognition:{status:'waiting',license_plate:null,vehicle_type:'unknown'},sources:{gate,uno:source,esp32:source,camera:{fresh:false,payload_valid:false,camera_state:0}}}));
   }
   if (['/api/history','/api/cloud/history'].includes(url.pathname)) {
@@ -49,6 +50,11 @@ const server = http.createServer((req,res) => {
     await page.goto(`http://127.0.0.1:${server.address().port}/#/admin/vehicles`);
     await page.waitForFunction(()=>charts.length===6);
     await page.waitForFunction(()=>document.getElementById('servo-status').textContent.includes('Disabled'));
+    assert.equal(await page.locator('#parking3-status').textContent(),'Entrance authorization wait');
+    assert.match(await page.locator('#parking3-detail').textContent(),/Direction: entrance · Cycle 4 · U1 12 cm · U2 No echo .*Servo disabled/);
+    assert.match(await page.locator('#parking3-command').textContent(),/accepted .*teammate owned/);
+    assert.equal(await page.locator('#vibration-count').textContent(),'3');
+    assert.match(await page.locator('#g-commit').textContent(),/simulator/);
     assert.doesNotMatch(await page.locator('body').textContent(),/Allocation|CAR PARK|MOTORCYCLE PARK|A1 distance/);
     for (const range of ['30','1440','10080']) {
       await page.selectOption('#range',range);
@@ -70,6 +76,7 @@ const server = http.createServer((req,res) => {
     failLive=true;await page.evaluate(()=>live());
     assert.equal(await page.locator('#esp32-status').textContent(),'ESP32 · Unknown');
     assert.equal(await page.locator('#gate-sim-state').textContent(),'Unknown');
+    assert.equal(await page.locator('#parking3-status').textContent(),'Not enabled');
     failLive=false;failHistory=false;
     await page.evaluate(async()=>{await live();await history();});
     assert.equal(await page.evaluate(()=>charts.length),6);
