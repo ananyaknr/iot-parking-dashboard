@@ -2,6 +2,13 @@
 
 ## Sensor and gate integration handoff
 
+The minimum joint HTTP bridge is now available: see
+[same-laptop run instructions and API boundaries](docs/parking-joint-minimum.md).
+Its three actual-camera joint tests are currently **blocked**: the isolated
+parking API is Mac-loopback-only, both supplied cameras are unreachable, and the
+Mac exit OCR update is uncommitted. Earlier live gate tests below remain valid;
+they do not establish joint camera/session acceptance.
+
 Current branch: **`feature/parking-full-integration`**, based on merged
 [PR #4](https://github.com/ananyaknr/iot-parking-dashboard/pull/4) at `8d3b445`.
 The current workflow is **U1 entrance / U2 exit**. The teammate confirmed the

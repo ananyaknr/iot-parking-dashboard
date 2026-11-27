@@ -1,5 +1,18 @@
 # Issue 1 implementation and ownership ledger
 
+## Minimum joint HTTP bridge — 2026-11-27
+
+Added an opt-in isolated MQTT/HTTP bridge using the teammate's checked OpenAPI
+fields. Stable arrival/observation/request identities prevent duplicate sessions
+and commands. Exit commit is deferred until completed confirmed passage; the
+teammate transaction performs matching and release. No second allocator or
+teammate changes were added. Firmware/wiring are unchanged.
+
+Actual joint entrance/duplicate/exit tests remain blocked by the Mac-only test
+API, unavailable cameras and uncommitted Mac exit OCR update. Syntax checks
+passed; no mocked result is reported as actual camera recognition. See
+[run instructions, exact API boundaries and three test statuses](parking-joint-minimum.md).
+
 ## Confirmed v1 simulation implementation — 2026-11-27
 
 The owner relayed teammate agreement for `parking/v1/arrival`,
