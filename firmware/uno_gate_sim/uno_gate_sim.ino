@@ -26,6 +26,12 @@ using namespace gatev2;
 #ifndef GATE_PHYSICAL_ENABLED
 #define GATE_PHYSICAL_ENABLED 0
 #endif
+#ifndef GATE_INFERRED_CLEARANCE_ENABLED
+#define GATE_INFERRED_CLEARANCE_ENABLED 0
+#endif
+#if GATE_INFERRED_CLEARANCE_ENABLED && !GATE_PHYSICAL_ENABLED
+#error Inferred demonstration policy requires explicit physical build
+#endif
 #ifndef GATE_OPEN_ANGLE
 #define GATE_OPEN_ANGLE 80
 #endif
@@ -100,6 +106,7 @@ const __FlashStringHelper* benchReason() {
     case gatebench::R_RESET:return F("reset");
     case gatebench::R_STOP:return F("operator_stop");
     case gatebench::R_UNVERIFIED:return F("passage_review");
+    case gatebench::R_INFERRED:return F("INFERRED ONLY");
     default:return F("boot");
   }
 }
@@ -318,6 +325,7 @@ void automaticActuator() {
 }
 void setup() {
   bench.automatic=GATE_AUTOMATIC_ENABLED;
+  bench.inferredPolicy=GATE_INFERRED_CLEARANCE_ENABLED;
   Serial.begin(115200);gateway.begin(19200);gateway.listen();
   pinMode(U1_TRIG,OUTPUT);pinMode(U1_ECHO,INPUT);pinMode(U2_TRIG,OUTPUT);pinMode(U2_ECHO,INPUT);
   digitalWrite(U1_TRIG,LOW);digitalWrite(U2_TRIG,LOW);pinMode(VIB,INPUT_PULLUP);

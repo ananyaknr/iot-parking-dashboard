@@ -6,13 +6,13 @@ namespace gatebench {
 enum Phase { BOOT, CLOSED, AUTH, OPEN, CLOSING, HOLD };
 enum Lane { NONE, ENTRANCE, EXIT, MANUAL };
 enum Reason { R_BOOT,R_READY,R_ENTRANCE,R_EXIT,R_MANUAL,R_AUTHORIZED,R_CLOSING,
-  R_UNKNOWN,R_CONFLICT,R_TIMEOUT,R_OPPOSITE,R_AUTH_TIMEOUT,R_OBSTRUCTION,R_COMPLETE,R_RESET,R_STOP,R_UNVERIFIED };
+  R_UNKNOWN,R_CONFLICT,R_TIMEOUT,R_OPPOSITE,R_AUTH_TIMEOUT,R_OBSTRUCTION,R_COMPLETE,R_RESET,R_STOP,R_UNVERIFIED,R_INFERRED };
 struct Controller {
   Phase phase=BOOT;
   Lane lane=NONE;
   uint32_t cycle=0,openedAt=0,startedAt=0,clearAt=0,closingAt=0;
   uint32_t minimumOpenMs=5000,timeoutMs=120000;
-  bool clearTiming=false,confirmed=false,automatic=false;
+  bool clearTiming=false,confirmed=false,automatic=false,inferredPolicy=false,eligible=false,disqualified=false;
   uint32_t clearanceMs() const {return automatic?2000:800;}
   Reason reason=R_BOOT;
   bool clear(const gatev2::Reading& a,const gatev2::Reading& b,uint32_t now) {
@@ -20,16 +20,17 @@ struct Controller {
     if(!clearTiming) {clearTiming=true;clearAt=now;}
     return uint32_t(now-clearAt)>=clearanceMs();
   }
-  void hold(Reason why) {phase=HOLD;reason=why;confirmed=false;clearTiming=false;}
+  void hold(Reason why) {eligible=false;disqualified=true;phase=HOLD;reason=why;confirmed=false;clearTiming=false;}
   bool start(Lane which,uint32_t now) {
     if(phase!=CLOSED || cycle==UINT32_MAX) return false;
-    ++cycle;lane=which;startedAt=now;confirmed=false;clearTiming=false;
+    ++cycle;disqualified=false;eligible=automatic && which==EXIT;lane=which;startedAt=now;confirmed=false;clearTiming=false;
     phase=which==ENTRANCE?AUTH:OPEN;openedAt=now;
     reason=which==ENTRANCE?R_ENTRANCE:which==EXIT?R_EXIT:R_MANUAL;
     return true;
   }
   bool authorize(uint32_t id,uint32_t now) {
     if(phase!=AUTH || cycle!=id || uint32_t(now-startedAt)>=20000) return false;
+    eligible=automatic && !disqualified && lane==ENTRANCE;
     phase=OPEN;openedAt=now;clearTiming=false;reason=R_AUTHORIZED;return true;
   }
   bool confirm(uint32_t id) {
@@ -42,6 +43,11 @@ struct Controller {
     phase=CLOSING;closingAt=now;reason=R_CLOSING;return true;
   }
   void update(const gatev2::Reading& a,const gatev2::Reading& b,uint32_t now) {
+    // Own-lane presence before clearance begins is normal. Reoccupation after
+    // any clearance begins is an unexpected obstruction, even if it recovers.
+    if(automatic && phase==OPEN && clearTiming && (!a.clear() || !b.clear())) {
+      eligible=false;disqualified=true;
+    }
     const bool safe=clear(a,b,now);
     if(phase==BOOT) {if(safe) {phase=CLOSED;reason=R_READY;}return;}
     if(phase==HOLD) return;
@@ -56,6 +62,7 @@ struct Controller {
     // In automatic OPEN, invalid input prevents closure but can recover without
     // an operator. Invalid input during closing stops/reopens into a fault hold.
     if(a.cm<0 || b.cm<0) {
+      eligible=false;disqualified=true;
       if(!automatic || phase!=OPEN) hold(R_UNKNOWN);
       return;
     }
@@ -66,7 +73,7 @@ struct Controller {
     if(phase==CLOSING) {
       if(!a.clear() || !b.clear()) hold(R_OBSTRUCTION);
       else if(uint32_t(now-closingAt)>=500) {
-        phase=CLOSED;lane=NONE;reason=automatic?R_UNVERIFIED:R_COMPLETE;confirmed=false;
+        phase=CLOSED;lane=NONE;reason=automatic?(inferredPolicy && eligible && !disqualified?R_INFERRED:R_UNVERIFIED):R_COMPLETE;confirmed=false;
       }
     }
     if(automatic && phase==OPEN && safe) close(now);
@@ -74,7 +81,7 @@ struct Controller {
   }
   bool reset() {
     if(phase!=HOLD || !clearTiming) return false;
-    phase=BOOT;lane=NONE;confirmed=false;clearTiming=false;reason=R_RESET;return true;
+    eligible=false;disqualified=true;phase=BOOT;lane=NONE;confirmed=false;clearTiming=false;reason=R_RESET;return true;
   }
 };
 }

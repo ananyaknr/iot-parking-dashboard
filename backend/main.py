@@ -45,6 +45,8 @@ def main():
     v1_enabled=os.environ.get('PARKING_V1_ENABLED')=='yes'
     if v1_enabled and not (gate_enabled and routing=='isolated' and prefix=='parking/test' and bucket=='sensor_test'):
         raise ValueError('Parking v1 simulation requires isolated test routing')
+    physical_inferred=os.environ.get('PARKING_V1_PHYSICAL_INFERRED')=='yes'
+    if physical_inferred and not v1_enabled:raise ValueError('Physical inferred mode requires isolated Parking v1')
     wire_topics={topic.replace('parking/',prefix+'/',1):topic for topic in TOPICS
                  if TOPICS[topic]!='gate' or gate_enabled}
     if gate_enabled and routing=='isolated' and os.environ.get('GATE_ENVIRONMENT_FROM_PRODUCTION')=='yes':
@@ -74,7 +76,7 @@ def main():
     client.username_pw_set(os.environ["MQTT_USERNAME"], os.environ["MQTT_PASSWORD"])
     client.reconnect_delay_set(min_delay=1, max_delay=10)
     parking_clock=VerifiedClock(stop) if v1_enabled else None
-    parking=ParkingV1(runtime/'parking-v1-test.sqlite3',lambda topic,payload:client.publish(topic,payload,qos=1,retain=False),clock=parking_clock,clock_verified=parking_clock.verified) if v1_enabled else None
+    parking=ParkingV1(runtime/('parking-v1-physical-inferred-test.sqlite3' if physical_inferred else 'parking-v1-test.sqlite3'),lambda topic,payload:client.publish(topic,payload,qos=1,retain=False),clock=parking_clock,clock_verified=parking_clock.verified,physical_inferred=physical_inferred,test_storage=True) if v1_enabled else None
     if parking:
         for topic in (V3_TELEMETRY,V1_COMMAND,V3_ACK,V1_FEEDBACK_ACK):wire_topics[topic]=topic
 
@@ -88,6 +90,7 @@ def main():
             log.warning("MQTT connection refused: %s", reason_code)
 
     def on_disconnect(c, userdata, flags, reason_code, properties):
+        if parking:parking.interrupt()
         with state_lock:
             connected.clear()
             status["generation"] += 1
@@ -178,6 +181,7 @@ def main():
                             if data:
                                 p=(Point('parking_gate_v3').tag('source','parking3').tag('data_origin',origin)
                                    .time(stamp,WritePrecision.NS))
+                                if physical_inferred:p.tag('gate_mode',data['mode']).field('servo_enabled',data['servo_enabled'])
                                 for field in ('u1_distance_cm','u2_distance_cm','cycle','vibration_raw','vibration_transition_count','phase','lane','reason'):
                                     if data[field] is not None:p.field(field,float(data[field]) if field.endswith('_cm') else data[field])
                                 storage.submit(p)

@@ -45,7 +45,11 @@ def main():
                BACKEND_STOP_FILE=str(ROOT/'.runtime/gate-demo.stop'))
     stop=ROOT/'.runtime/gate-demo.stop'
     if stop.exists():raise ValueError('Remove gate-demo.stop deliberately before restarting the demo')
-    print('Isolated hardware simulation: http://127.0.0.1:5001; sensor_test only. No servo output.',flush=True)
+    if env.get('PARKING_V1_PHYSICAL_INFERRED')=='yes':
+        env['GATE_TEST_CLOUD']='no'
+        print('Isolated PHYSICAL inferred demonstration: http://127.0.0.1:5001; local test storage only. Hardware acceptance required.',flush=True)
+    else:
+        print('Isolated hardware simulation: http://127.0.0.1:5001; sensor_test only. No servo output.',flush=True)
     return subprocess.call([sys.executable,str(ROOT/'backend/main.py')],env=env,cwd=ROOT)
 
 if __name__=='__main__':

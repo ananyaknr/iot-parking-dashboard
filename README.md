@@ -6,6 +6,9 @@ Automatic gate operation is prepared on `feature/autonomous-gate`, with physical
 output disabled by default. See [build modes, passage limitations and hardware
 acceptance](docs/autonomous-gate.md). Software checks do not establish physical
 acceptance; automatic closure never claims confirmed passage.
+The opt-in [physical inferred-clearance sender contract](docs/physical-inferred-contract.md)
+adds unverified demonstration completion, isolated test configuration and exact
+payloads; hardware and teammate receiver acceptance remain pending.
 
 For the gateway's intermittent MQTT transport failure, see the
 [diagnosis, bounded reconnect repair and rollback](docs/esp32-mqtt-recovery.md).

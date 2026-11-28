@@ -1,4 +1,4 @@
-"""Isolated confirmed v1 simulation adapter. No allocation or session writes."""
+"""Isolated v1 sender with opt-in physical inference. No allocation/session writes."""
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -40,10 +40,20 @@ def decode(payload):
     return result
 
 class ParkingV1:
-    def __init__(self,path,publish,*,clock=lambda:datetime.now(timezone.utc),mono=time.monotonic,clock_verified=lambda:True):
+    def __init__(self,path,publish,*,clock=lambda:datetime.now(timezone.utc),mono=time.monotonic,clock_verified=lambda:True,physical_inferred=False,test_storage=False):
+        if physical_inferred and (not test_storage or PREFIX!='parking/test/'):
+            raise ValueError('Physical inferred mode requires isolated test storage and namespace')
+        self.physical_inferred=physical_inferred;self.physical_cycle=None;self.physical_closing_at=None
         self.publish=publish;self.clock=clock;self.mono=mono;self.clock_verified=clock_verified;self.lock=threading.RLock()
         self.db=sqlite3.connect(path,check_same_thread=False)
         self.db.execute('PRAGMA synchronous=FULL')
+        self.db.execute('CREATE TABLE IF NOT EXISTS adapter_mode (mode TEXT NOT NULL)')
+        mode='physical_inferred_test' if physical_inferred else 'simulation'
+        saved=self.db.execute('SELECT mode FROM adapter_mode').fetchone()
+        legacy=self.db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='arrivals'").fetchone()
+        if (saved and saved[0]!=mode) or (not saved and legacy and physical_inferred):
+            self.db.close();raise ValueError('Ledger mode mismatch; use a separate fresh test ledger')
+        if not saved:self.db.execute('INSERT INTO adapter_mode VALUES(?)',(mode,))
         self.db.execute('CREATE TABLE IF NOT EXISTS arrivals (id TEXT PRIMARY KEY,payload TEXT NOT NULL,expires REAL NOT NULL,last_sent REAL NOT NULL)')
         self.db.execute('CREATE TABLE IF NOT EXISTS commands (id TEXT PRIMARY KEY, event TEXT UNIQUE NOT NULL, arrival TEXT UNIQUE NOT NULL, hash TEXT NOT NULL, token TEXT UNIQUE NOT NULL, ack TEXT NOT NULL, state TEXT NOT NULL)')
         self.db.execute('CREATE INDEX IF NOT EXISTS command_state ON commands(state)')
@@ -62,7 +72,16 @@ class ParkingV1:
         arrival=self.db.execute('SELECT payload FROM arrivals WHERE id=?',(aid,)).fetchone()
         if not arrival:return
         state={3:'opening',5:'hold'}.get(m['phase'])
+        key=(m['boot_id'],m['gateway_boot_id'],m['cycle'])
+        inferred=(self.physical_inferred and m['phase']==1 and m['reason']==17
+            and self.physical_cycle==key and old and old['phase']==4
+            and (old['boot_id'],old['gateway_boot_id'],old['cycle'])==key
+            and self.physical_closing_at is not None
+            and ((m['uptime_ms']-self.physical_closing_at)&0xffffffff)>=500
+            and all(m[z+'_state']=='clear' and m[z+'_distance_cm'] is not None and m[z+'_distance_cm']>=18 for z in ('u1','u2')))
+        if m['phase']==1 and m['reason']==17:state='completed' if inferred else 'hold'
         if m['phase']==1 and m['reason']==16:state='hold'
+        if self.physical_inferred and m['phase']==1 and m['reason']==13:state='hold'
         # R_COMPLETE is emitted only after explicit CONFIRM, safe CLOSE and closing.
         if (m['mode']=='entrance_exit_sim' and m['phase']==1 and m['reason']==13 and old and old['phase']==4 and old['cycle']==m['cycle']
             and old['boot_id']==m['boot_id'] and old['gateway_boot_id']==m['gateway_boot_id']):state='completed'
@@ -72,13 +91,15 @@ class ParkingV1:
         command=self.db.execute('SELECT id FROM commands WHERE arrival=?',(aid,)).fetchone()
         payload={'schema_version':1,'event_id':uuid.uuid4().hex,'producer_id':'sensor-gateway',
           'occurred_at':self.clock().isoformat(),'arrival_id':aid,'command_id':command[0] if command else None,
-          'direction':json.loads(arrival[0])['direction'],'state':state,'passage_confirmed':state=='completed',
-          'simulation':True,'reason':None if state=='completed' else 'passage_unverified_safe_close' if m['reason']==16 else 'controller_reason_'+str(m['reason'])}
+          'direction':json.loads(arrival[0])['direction'],'state':state,'passage_confirmed':state=='completed' and not self.physical_inferred,
+          'simulation':not self.physical_inferred,'reason':None if state=='completed' else 'passage_unverified_safe_close' if m['reason']==16 else 'controller_reason_'+str(m['reason'])}
+        if inferred:payload['passage_basis']='inferred_clearance'
         self.db.execute('INSERT INTO feedback(id,arrival,transition,payload) VALUES(?,?,?,?)',
                         (payload['event_id'],aid,transition,json.dumps(payload)))
         self.db.commit()
 
     def feedback_ack(self,m):
+        if 'simulation' in m and m['simulation'] is not (not self.physical_inferred):raise ValueError('Receipt mode mismatch')
         required={'schema_version','event_id','producer_id','occurred_at','arrival_id','feedback_id','state'}
         if not required<=set(m) or type(m['schema_version']) is not int or m['schema_version']!=1 or m['state']!='recorded':raise ValueError('Feedback acknowledgement')
         if not all(ident(m[k]) for k in ('event_id','producer_id','arrival_id','feedback_id')):raise ValueError('Identity')
@@ -91,12 +112,16 @@ class ParkingV1:
 
     def telemetry(self,m):
         required={'schema_version','mode','boot_id','gateway_boot_id','uptime_ms','gateway_uptime_ms','u1_distance_cm','u2_distance_cm','u1_state','u2_state','phase','lane','cycle','vibration_raw','vibration_transition_count','reason','minimum_open_ms','started_at_ms','servo_enabled'}
-        if set(m)!=required or m['schema_version']!=3 or type(m['schema_version']) is not int or m['mode'] not in ('entrance_exit_sim','entrance_exit_auto_sim') or m['servo_enabled'] is not False:raise ValueError('G3 schema')
+        modes=('entrance_exit_auto_physical',) if self.physical_inferred else ('entrance_exit_sim','entrance_exit_auto_sim')
+        if m.get('mode') not in modes or m.get('servo_enabled') is not self.physical_inferred:
+            self.current=None;self.received=None;self.physical_cycle=None;self.physical_closing_at=None
+            raise ValueError('Controller mode mismatch')
+        if set(m)!=required or m['schema_version']!=3 or type(m['schema_version']) is not int:raise ValueError('G3 schema')
         for key in ('boot_id','gateway_boot_id'):
             if not isinstance(m[key],str) or not re.fullmatch('[0-9a-f]{32}',m[key]):raise ValueError('Boot')
         for key in ('uptime_ms','gateway_uptime_ms','cycle','vibration_raw','vibration_transition_count','reason','minimum_open_ms','started_at_ms','phase','lane'):
             if type(m[key]) is not int or not 0<=m[key]<=4294967295:raise ValueError('Unsigned field')
-        if m['phase']>5 or m['lane']>3 or m['reason']>16 or m['vibration_raw']>1 or not 5000<=m['minimum_open_ms']<=60000:raise ValueError('State bounds')
+        if m['phase']>5 or m['lane']>3 or m['reason']>17 or m['vibration_raw']>1 or not 5000<=m['minimum_open_ms']<=60000:raise ValueError('State bounds')
         for z in ('u1','u2'):
             v=m[z+'_distance_cm'];s=m[z+'_state']
             if s not in ('unknown','clear','detected'):raise ValueError('Zone')
@@ -112,6 +137,14 @@ class ParkingV1:
             if epoch==old_epoch:
                 if not 0<((m['uptime_ms']-old['uptime_ms'])&0xffffffff)<0x80000000 or m['cycle']<old['cycle']:raise ValueError('Replay')
             else:self.retired=(self.retired+[old_epoch])[-128:]
+        key=(m['boot_id'],m['gateway_boot_id'],m['cycle'])
+        if self.physical_inferred and old and self.received is not None and self.mono()-self.received>2:
+            self.physical_cycle=None;self.physical_closing_at=None
+        if self.physical_cycle!=key:self.physical_cycle=None;self.physical_closing_at=None
+        if m['phase']==5 or any(m[z+'_distance_cm'] is None for z in ('u1','u2')):
+            self.physical_cycle=None;self.physical_closing_at=None
+        if self.physical_cycle==key and m['phase']==4 and self.physical_closing_at is None:
+            self.physical_closing_at=m['uptime_ms']
         self.current=dict(m);self.received=self.mono()
         if m['lane'] in (1,2) and m['cycle'] and m['phase']==(2 if m['lane']==1 else 3):
             age=((m['uptime_ms']-m['started_at_ms'])&0xffffffff)/1000
@@ -119,9 +152,11 @@ class ParkingV1:
                 aid=f"r_{m['boot_id']}_{m['cycle']}"
                 if not self.db.execute('SELECT 1 FROM arrivals WHERE id=?',(aid,)).fetchone():
                     if self.db.execute('SELECT count(*) FROM arrivals').fetchone()[0]>=5000:raise ValueError('Arrival ledger full')
+                    if self.physical_inferred and all(m[z+'_distance_cm'] is not None for z in ('u1','u2')):self.physical_cycle=key
                     now=self.clock();payload={'schema_version':1,'event_id':uuid.uuid4().hex,'arrival_id':aid,
                         'occurred_at':now.isoformat(),'producer_id':'sensor-gateway','trigger':'ultrasonic',
                         'direction':DIRECTIONS[m['lane']]}
+                    if self.physical_inferred:payload['simulation']=False
                     self.db.execute('INSERT INTO arrivals VALUES(?,?,?,?)',(aid,json.dumps(payload),(now.timestamp()+20-age),-1e9));self.db.commit()
         self.transition(m,old)
         return m
@@ -132,6 +167,9 @@ class ParkingV1:
         if row:
             if row[0]==digest:self.emit(ACK,json.loads(row[1]));return 'duplicate'
             raise ValueError('Conflicting rejected command')
+        if self.physical_inferred:
+            if m.get('simulation') is not False:raise ValueError('Physical command requires simulation:false')
+        elif 'simulation' in m and m['simulation'] is not True:raise ValueError('Simulation command mode mismatch')
         try:return self._command(m)
         except ValueError:
             # Reject recognizable commands explicitly, but never overwrite an existing identity.
@@ -141,6 +179,7 @@ class ParkingV1:
                 ack={'schema_version':1,'event_id':uuid.uuid4().hex,'ack_id':uuid.uuid4().hex,
                      'producer_id':'sensor-gateway','occurred_at':self.clock().isoformat(),'arrival_id':m['arrival_id'],
                      'command_id':m['command_id'],'state':'rejected','reason':'validation_or_controller_state'}
+                if self.physical_inferred:ack['simulation']=False
                 self.db.execute('INSERT INTO rejections VALUES(?,?,?)',(m['command_id'],digest,json.dumps(ack)));self.db.commit();self.emit(ACK,ack)
             raise
 
@@ -170,11 +209,15 @@ class ParkingV1:
         ack={'schema_version':1,'event_id':uuid.uuid4().hex,'ack_id':uuid.uuid4().hex,'arrival_id':m['arrival_id'],'command_id':m['command_id'],
              'occurred_at':now.isoformat(),'producer_id':'sensor-gateway','status':'unknown','state':'unknown','reason':'awaiting_controller',
              'physical_movement':False}
+        if self.physical_inferred:
+            ack['simulation']=False
+            ack.pop('physical_movement',None) # command ACK cannot measure motion
         # No plate/session archive: persist fingerprint and delivery receipt only.
         self.db.execute('INSERT INTO commands VALUES(?,?,?,?,?,?,?)',(m['command_id'],m['event_id'],m['arrival_id'],digest,token,json.dumps(ack),'pending'));self.db.commit()
         remaining=int((expiry-now).total_seconds()*1000)
         control={'boot_id':g['boot_id'],'gateway_boot_id':g['gateway_boot_id'],'cycle':g['cycle'],'wire_token':token,
                  'deadline_ms':(g['gateway_uptime_ms']+remaining)&0xffffffff,'lcd_hex':lcd.encode('ascii').hex(),'vehicle_type':m['vehicle_type']}
+        if self.physical_inferred:control['simulation']=False
         self.recognition={k:m[k] for k in ('license_plate','lcd_plate','vehicle_type','occurred_at','arrival_id')}
         self.emit(CONTROL,control)
         return 'accepted'
@@ -192,7 +235,7 @@ class ParkingV1:
                     row=self.db.execute('SELECT id,ack,state FROM commands WHERE token=?',(m['wire_token'],)).fetchone()
                     if row and row[2]=='pending':
                         ack=json.loads(row[1]);ack['status']=ack['state']='accepted' if m['status'] in ('ok','duplicate') else 'rejected' if m['status']=='rejected' else 'unknown'
-                        ack['reason']='simulated_open_lcd' if ack['status']=='accepted' else 'uno_'+m['status']
+                        ack['reason']=('physical_open_commanded_lcd' if self.physical_inferred else 'simulated_open_lcd') if ack['status']=='accepted' else 'uno_'+m['status']
                         # New acknowledgement state is its own event; retries reuse it.
                         ack['event_id']=uuid.uuid4().hex;ack['ack_id']=uuid.uuid4().hex;ack['occurred_at']=self.clock().isoformat()
                         self.db.execute('UPDATE commands SET state=?,ack=? WHERE id=?',(ack['status'],json.dumps(ack),row[0]));self.db.commit();self.emit(ACK,ack)
@@ -231,5 +274,11 @@ class ParkingV1:
                     'command_outcome':outcome,'feedback_enabled':True,'clock_verified':self.clock_verified(),
                     'pending_feedback':self.db.execute('SELECT count(*) FROM feedback WHERE recorded=0').fetchone()[0],
                     'session_release':'teammate_owned','rejected':self.rejected}
+
+    def interrupt(self):
+        with self.lock:
+            if self.physical_inferred:
+                self.physical_cycle=None;self.physical_closing_at=None
+                self.current=None;self.received=None
 
     def close(self):self.db.close()

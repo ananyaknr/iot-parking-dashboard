@@ -1,5 +1,8 @@
 # Confirmed simulation interface and G3 implementation
 
+For the later explicit physical demonstration opt-in, see the exact
+[inferred-clearance sender contract](physical-inferred-contract.md).
+
 The opt-in [automatic gate extension](autonomous-gate.md) preserves these five
 topic envelopes. A3 identifies autonomous simulation; P3 identifies a physical
 build and is rejected by the simulation adapter. Automatic safe close sends

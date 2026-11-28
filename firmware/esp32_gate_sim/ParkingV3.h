@@ -1,7 +1,7 @@
 // Internal adapter only; shared MQTT envelopes and durable dedup live in backend.
 #include <GateWire3.h>
 constexpr const char* V3_CONTROL="parking/test/gate/v3/control";
-struct V3Command {char boot[33],gateway[33],token[9],lcd[33],type[9];uint32_t cycle,deadline,generation;};
+struct V3Command {char boot[33],gateway[33],token[9],lcd[33],type[9];uint32_t cycle,deadline,generation;bool physical;};
 QueueHandle_t v3Queue;
 char gatewayBoot[33]="",v3Pending[128]="",v3Token[9]="";
 gatewire3::Telemetry v3Latest{};
@@ -54,12 +54,15 @@ void queueV3(byte* bytes,unsigned length) {
   if(!d["boot_id"].is<const char*>()||!d["gateway_boot_id"].is<const char*>()
     ||!d["wire_token"].is<const char*>()||!d["lcd_hex"].is<const char*>()||!d["vehicle_type"].is<const char*>()
     ||!d["cycle"].is<uint32_t>()||!d["deadline_ms"].is<uint32_t>())return;
+  bool physical=v3Latest.mode=='P';
+  if(physical ? (!d["simulation"].is<bool>() || d["simulation"].as<bool>())
+              : (!d["simulation"].isNull() && (!d["simulation"].is<bool>() || !d["simulation"].as<bool>()))) return;
   const char* boot=d["boot_id"];const char* gw=d["gateway_boot_id"];const char* token=d["wire_token"];
   const char* lcd=d["lcd_hex"];const char* type=d["vehicle_type"];char decoded[17];
   if(!gatev2::hex(boot,32)||strcmp(gw,gatewayBoot)||!gatev2::hex(token,8)
      ||!gatewire3::lcdDecode(lcd,decoded)||!gatewire3::vehicle(type))return;
   V3Command c{};strcpy(c.boot,boot);strcpy(c.gateway,gw);strcpy(c.token,token);strcpy(c.lcd,lcd);strcpy(c.type,type);
-  c.cycle=d["cycle"];c.deadline=d["deadline_ms"];c.generation=mqttGeneration.load();
+  c.physical=physical;c.cycle=d["cycle"];c.deadline=d["deadline_ms"];c.generation=mqttGeneration.load();
   if(!gatewire3::deadline(millis(),c.deadline))return;
   xQueueSend(v3Queue,&c,0);
 }
@@ -81,7 +84,7 @@ void sendV3() {
   if(!v3Active||uint32_t(now-lastUnoReceived)>=100)return;
   V3Command c;
   if(xQueueReceive(v3Queue,&c,0)!=pdTRUE)return;
-  if(!mqttOnline||c.generation!=mqttGeneration.load()||strcmp(c.boot,activeBoot)
+  if(c.physical!=(v3Latest.mode=='P')||!mqttOnline||c.generation!=mqttGeneration.load()||strcmp(c.boot,activeBoot)
     ||v3Latest.phase!=2||v3Latest.lane!=1||c.cycle!=v3Latest.cycle||!gatewire3::deadline(now,c.deadline)) {
     v3Ack(c.token,"rejected");return;
   }

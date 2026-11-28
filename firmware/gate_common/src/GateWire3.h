@@ -27,7 +27,7 @@ inline bool telemetry(char* text,Telemetry& t) {
     ||!gatev2::decimal(f[7],t.phase)||!gatev2::decimal(f[8],t.lane)||!gatev2::decimal(f[9],t.cycle)
     ||!gatev2::decimal(f[10],t.raw)||!gatev2::decimal(f[11],t.vibration)||!gatev2::decimal(f[12],t.reason)
     ||!gatev2::decimal(f[13],t.minimum)||!gatev2::decimal(f[14],t.started)
-    ||t.phase>5||t.lane>3||t.raw>1||t.reason>16||t.minimum<5000||t.minimum>60000) return false;
+    ||t.phase>5||t.lane>3||t.raw>1||t.reason>17||t.minimum<5000||t.minimum>60000) return false;
   int a=-1,b=-1;
   for(int z=0;z<=2;++z) {if(!strcmp(f[5],gatev2::zoneName(gatev2::Zone(z)))) a=z;if(!strcmp(f[6],gatev2::zoneName(gatev2::Zone(z)))) b=z;}
   if(a<0||b<0||(t.u1<0&&a!=0)||(t.u2<0&&b!=0)) return false;

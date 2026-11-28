@@ -1,5 +1,9 @@
 # Automatic gate operation — hardware acceptance pending
 
+The later [physical inferred-clearance extension](physical-inferred-contract.md)
+supersedes the P3 rejection/API-pending description below only when both explicit
+policy opt-ins are enabled. The original default G3/A3 behavior remains unchanged.
+
 Extends the integrated UNO `GateBench` controller from main `f92ef31`.
 No upload or physical movement was performed. Existing private configuration,
 environments, OCR models, sensor storage and teammate source are unchanged.
